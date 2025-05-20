@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Edit {{ user_plant.nickname or user_plant.plant.common_name }} - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Edit Plant</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Edit Plant Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="nickname" class="form-label">Nickname</label>
+                            <input type="text" class="form-control" id="nickname" name="nickname" value="{{ user_plant.nickname or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location</label>
+                            <input type="text" class="form-control" id="location" name="location" value="{{ user_plant.location_in_home or '' }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="active" {% if user_plant.status == 'active' %}selected{% endif %}>Active</option>
+                                <option value="dormant" {% if user_plant.status == 'dormant' %}selected{% endif %}>Dormant</option>
+                                <option value="struggling" {% if user_plant.status == 'struggling' %}selected{% endif %}>Struggling</option>
+                                <option value="deceased" {% if user_plant.status == 'deceased' %}selected{% endif %}>Deceased</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3">{{ user_plant.notes or '' }}</textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Upload New Image (Optional)</label>
+                            <input class="form-control" type="file" id="image" name="image" accept="image/*">
+                            {% if user_plant.image_url %}
+                            <div class="form-text">Leave empty to keep current image.</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="/user-plant/{{ user_plant.user_plant_id }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-success">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Current Image</h5>
+                </div>
+                <div class="card-body text-center">
+                    {% if user_plant.image_url %}
+                    <img src="{{ user_plant.image_url }}" class="img-fluid rounded" style="max-height: 300px;" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                    {% elif user_plant.plant.image_url %}
+                    <img src="{{ user_plant.plant.image_url }}" class="img-fluid rounded" style="max-height: 300px;" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                    <div class="mt-2 text-muted">Using default plant image. Upload your own photo above.</div>
+                    {% else %}
+                    <div class="bg-light p-5 rounded">
+                        <span class="text-muted">No image available</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Plant Information</h5>
+                </div>
+                <div class="card-body">
+                    <h6>{{ user_plant.plant.common_name }}</h6>
+                    <p class="text-muted font-italic">{{ user_plant.plant.scientific_name }}</p>
+                    <p>{{ user_plant.plant.description|truncate(150) }}</p>
+                    <a href="/plant/{{ user_plant.plant.plant_id }}" class="btn btn-sm btn-outline-success">View Plant Details</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

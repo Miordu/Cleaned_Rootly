@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Welcome, {{ user.username }}!</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Your Plants</h5>
+                    <p class="card-text display-4">{{ user.plants|length }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Upcoming Reminders</h5>
+                    <p class="card-text display-4">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Plants Identified</h5>
+                    <p class="card-text display-4">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="/identify" class="btn btn-outline-success">Identify a Plant</a>
+                        <a href="/add-plant" class="btn btn-outline-success">Add to Collection</a>
+                        <a href="/browse-plants" class="btn btn-outline-success">Browse Plants</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">No recent activity yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

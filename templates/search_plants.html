@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Search Plants - Rootly{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Search Plant Database</h1>
+    
+    <!-- Search Form with Enhanced UI -->
+    <div class="row mb-4">
+        <div class="col-md-8 offset-md-2">
+            <form method="GET" class="d-flex">
+                <input class="form-control me-2" type="search" name="query" placeholder="Search by name, scientific name, or features..." value="{{ query or '' }}" aria-label="Search">
+                <button class="btn btn-success" type="submit">Search</button>
+            </form>
+            <div class="mt-2 text-center">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#advancedSearch">
+                    Advanced filters
+                </button>
+            </div>
+            
+            <!-- Advanced Search (Collapsible) -->
+            <div class="collapse mt-3" id="advancedSearch">
+                <div class="card card-body">
+                    <!-- Will implement in future enhancement -->
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Light Needs</label>
+                            <select class="form-select" name="light">
+                                <option value="">Any</option>
+                                <option value="low">Low Light</option>
+                                <option value="medium">Medium Light</option>
+                                <option value="high">Bright Light</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Water Needs</label>
+                            <select class="form-select" name="water">
+                                <option value="">Any</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label">Difficulty</label>
+                            <select class="form-select" name="difficulty">
+                                <option value="">Any</option>
+                                <option value="easy">Easy</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="challenging">Challenging</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-center mt-2">
+                        <button type="submit" class="btn btn-sm btn-success">Apply Filters</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    {% if plants %}
+        <div class="row mb-3">
+            <div class="col-12">
+                <h2>Search Results</h2>
+                <p>Found {{ plants|length }} plants matching "{{ query }}"</p>
+            </div>
+        </div>
+        
+        <div class="row">
+            {% for plant in plants %}
+            <div class="col-md-4 mb-4">
+                <div class="card plant-card h-100">
+                    <!-- Image Section -->
+                    {% if plant.image_url %}
+                    <img src="{{ plant.image_url }}" class="card-img-top plant-image" alt="{{ plant.common_name }}" style="height: 200px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top plant-image bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                        <span class="text-muted">No image available</span>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Card Body -->
+                    <div class="card-body">
+                        <h5 class="card-title">{{ plant.common_name }}</h5>
+                        <p class="card-text text-muted"><em>{{ plant.scientific_name }}</em></p>
+                        
+                        <!-- Plant Characteristics -->
+                        {% if plant.care_details %}
+                        <div class="mb-3">
+                            {% if plant.care_details.sunlight_requirements %}
+                            <span class="badge bg-warning text-dark me-1">
+                                {% if plant.care_details.sunlight_requirements is string %}
+                                    {{ plant.care_details.sunlight_requirements }}
+                                {% elif plant.care_details.sunlight_requirements|length > 0 %}
+                                    {{ plant.care_details.sunlight_requirements[0] }}
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                            
+                            {% if plant.care_details.watering_frequency %}
+                            <span class="badge bg-info text-dark me-1">
+                                {{ plant.care_details.watering_frequency }}
+                            </span>

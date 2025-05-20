@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Rootly - Your Plant Care Companion{% endblock %}
+
+{% block content %}
+<div class="row align-items-center py-5">
+    <div class="col-md-6">
+        <h1 class="display-4">Welcome to Rootly</h1>
+        <p class="lead">Your intelligent plant care companion.</p>
+        <p>Identify plants, track care schedules, diagnose health issues, and get customized care recommendations - all in one place.</p>
+        
+        {% if not session.get('user_id') %}
+        <div class="mt-4">
+            <a href="/register" class="btn btn-success btn-lg me-2">Get Started</a>
+            <a href="/login" class="btn btn-outline-success btn-lg">Login</a>
+        </div>
+        {% else %}
+        <div class="mt-4">
+            <a href="/dashboard" class="btn btn-success btn-lg">Go to Dashboard</a>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-md-6">
+        <img src="/static/img/plant-hero.jpg" alt="Plants" class="img-fluid rounded shadow">
+    </div>
+</div>
+
+<div class="row py-5">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3 class="card-title">Identify Plants</h3>
+                <p class="card-text">Upload a photo and instantly identify thousands of plant species.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3 class="card-title">Track Care</h3>
+                <p class="card-text">Get reminders and keep a log of watering, fertilizing, and other care activities.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h3 class="card-title">Diagnose Issues</h3>
+                <p class="card-text">Identify and treat common plant health problems with expert recommendations.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

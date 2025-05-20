@@ -1,0 +1,57 @@
+# Python virtual environment
+venv/
+*.venv
+env/
+.env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# JavaScript dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
+
+# Mac system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE/Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Database files
+*.sqlite3
+
+# Logs
+*.log
+
+# Dependency directories
+pip-log.txt
+pip-delete-this-directory.txt
+
+# React build output
+build/
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Flask instance folder
+instance/

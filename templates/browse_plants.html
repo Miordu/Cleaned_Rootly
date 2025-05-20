@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Browse Plants - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Browse Plants</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <form method="GET" class="d-flex">
+                <input class="form-control me-2" type="search" name="search" placeholder="Search plants..." aria-label="Search">
+                <button class="btn btn-outline-success" type="submit">Search</button>
+            </form>
+        </div>
+        <div class="col-md-6">
+            <div class="btn-group float-end" role="group">
+                <button type="button" class="btn btn-outline-success active">All</button>
+                <button type="button" class="btn btn-outline-success">Indoor</button>
+                <button type="button" class="btn btn-outline-success">Outdoor</button>
+                <button type="button" class="btn btn-outline-success">Easy Care</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for plant in plants %}
+        <div class="col-md-4 mb-4">
+            <div class="card plant-card h-100">
+                {% if plant.image_url %}
+                <img src="{{ plant.image_url }}" class="card-img-top plant-image" alt="{{ plant.common_name }}">
+                {% else %}
+                <div class="card-img-top plant-image bg-light d-flex align-items-center justify-content-center">
+                    <span class="text-muted">No image available</span>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title">{{ plant.common_name }}</h5>
+                    <p class="card-text text-muted">{{ plant.scientific_name }}</p>
+                    <p class="card-text">
+                        {% if plant.indoor %}
+                        <span class="badge bg-info text-dark me-1">Indoor</span>
+                        {% endif %}
+                        {% if plant.outdoor %}
+                        <span class="badge bg-success me-1">Outdoor</span>
+                        {% endif %}
+                        {% if plant.poisonous_to_pets or plant.poisonous_to_humans %}
+                        <span class="badge bg-danger me-1">Poisonous</span>
+                        {% endif %}
+                    </p>
+                    <a href="/plant/{{ plant.plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

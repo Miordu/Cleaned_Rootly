@@ -1,0 +1,70 @@
+/* General Styles */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+footer {
+    margin-top: auto;
+}
+
+/* Custom Colors */
+.bg-success {
+    background-color: #2e8b57 !important;
+}
+
+.btn-success {
+    background-color: #2e8b57;
+    border-color: #2e8b57;
+}
+
+.btn-outline-success {
+    color: #2e8b57;
+    border-color: #2e8b57;
+}
+
+.btn-success:hover, .btn-outline-success:hover {
+    background-color: #226b43;
+    border-color: #226b43;
+}
+
+/* Plant Cards */
+.plant-card {
+    transition: transform 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.plant-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.plant-image {
+    height: 200px;
+    object-fit: cover;
+}
+
+/* Dashboard */
+.stat-card {
+    border-left: 4px solid #2e8b57;
+}
+
+/* Plant identification */
+.upload-area {
+    border: 2px dashed #ccc;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    border-color: #2e8b57;
+}
+
+.upload-area.highlight {
+    border-color: #2e8b57;
+    background-color: #f0f8f0;
+}

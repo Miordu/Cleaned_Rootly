@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}My Plants - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>My Plant Collection</h1>
+        <a href="/add-plant" class="btn btn-success">Add New Plant</a>
+    </div>
+    
+    {% if user_plants %}
+    <div class="row">
+        {% for user_plant in user_plants %}
+        <div class="col-md-4 mb-4">
+            <div class="card plant-card h-100">
+                {% if user_plant.image_url %}
+                <img src="{{ user_plant.image_url }}" class="card-img-top plant-image" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                {% elif user_plant.plant.image_url %}
+                <img src="{{ user_plant.plant.image_url }}" class="card-img-top plant-image" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                {% else %}
+                <div class="card-img-top plant-image bg-light d-flex align-items-center justify-content-center">
+                    <span class="text-muted">No image available</span>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title">{{ user_plant.nickname or user_plant.plant.common_name }}</h5>
+                    <p class="card-text text-muted">{{ user_plant.plant.scientific_name }}</p>
+                    <p class="card-text">
+                        {% if user_plant.location_in_home %}
+                        <small class="text-muted">Location: {{ user_plant.location_in_home }}</small>
+                        {% endif %}
+                    </p>
+                    <div class="d-grid gap-2">
+                        <a href="/user-plant/{{ user_plant.user_plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#logCareModal{{ user_plant.user_plant_id }}">Log Care</button>
+                    </div>
+                </div>
+                {% if user_plant.status %}
+                <div class="card-footer text-center">
+                    <span class="badge rounded-pill bg-{{ 'success' if user_plant.status == 'active' else 'warning' }}">
+                        {{ user_plant.status|capitalize }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Care Log Modal -->
+            <div class="modal fade" id="logCareModal{{ user_plant.user_plant_id }}" tabindex="-1" aria-labelledby="logCareModalLabel{{ user_plant.user_plant_id }}" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="logCareModalLabel{{ user_plant.user_plant_id }}">Log Care for {{ user_plant.nickname or user_plant.plant.common_name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form action="/log-care" method="POST">
+                            <div class="modal-body">
+                                <input type="hidden" name="user_plant_id" value="{{ user_plant.user_plant_id }}">
+                                
+                                <div class="mb-3">
+                                    <label for="event_type" class="form-label">Care Type</label>
+                                    <select class="form-select" id="event_type" name="event_type" required>
+                                        <option value="">Select care type</option>
+                                        <option value="Watering">Watering</option>
+                                        <option value="Fertilizing">Fertilizing</option>
+                                        <option value="Pruning">Pruning</option>
+                                        <option value="Repotting">Repotting</option>
+                                        <option value="Misting">Misting</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">Notes (Optional)</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-success">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <h3 class="card-title">Your collection is empty</h3>
+            <p class="card-text">You haven't added any plants to your collection yet.</p>
+            <div class="mt-4">
+                <a href="/browse-plants" class="btn btn-success me-2">Browse Plants</a>
+                <a href="/identify" class="btn btn-outline-success">Identify a Plant</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
