@@ -36,6 +36,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Initialize database connection
+from model import connect_to_db
+connect_to_db(app)
+
 # Helper functions
 def allowed_file(filename):
     """Check if the file extension is allowed"""
@@ -111,7 +115,7 @@ def dashboard():
         flash('Please log in to view your dashboard.')
         return redirect('/login')
     
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     
     return render_template('dashboard.html', user=user)
 
@@ -198,7 +202,7 @@ def my_plants():
         flash('Please log in to view your plants.')
         return redirect('/login')
     
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
     user_plants = UserPlant.query.filter_by(user_id=user.user_id).all()
     
     return render_template('my_plants.html', user=user, user_plants=user_plants)
@@ -236,20 +240,73 @@ def add_plant():
 
 @app.route('/browse-plants')
 def browse_plants():
-    """Browse all plants in the database."""
+    """Browse plants from APIs and database."""
     # Get search parameter
     search = request.args.get('search', '')
+    page = int(request.args.get('page', 1))
     
-    # Filter plants if search parameter is provided
-    if search:
-        plants = Plant.query.filter(
-            (Plant.common_name.ilike(f'%{search}%')) | 
-            (Plant.scientific_name.ilike(f'%{search}%'))
-        ).all()
-    else:
-        plants = Plant.query.all()
+    try:
+        if search:
+            # Search local database first
+            local_plants = Plant.query.filter(
+                (Plant.common_name.ilike(f'%{search}%')) | 
+                (Plant.scientific_name.ilike(f'%{search}%'))
+            ).limit(20).all()
+            
+            # If few results, supplement with API search
+            if len(local_plants) < 10:
+                try:
+                    from api.perenual import search_plants as perenual_search
+                    api_plants = perenual_search(search)
+                    if api_plants and 'data' in api_plants:
+                        # Convert API plants to display format
+                        for plant_data in api_plants['data'][:10]:
+                            # Create temporary plant objects for display
+                            api_plant = {
+                                'plant_id': f"api_{plant_data.get('id', 0)}",
+                                'scientific_name': plant_data.get('scientific_name', ['Unknown'])[0] if plant_data.get('scientific_name') else 'Unknown',
+                                'common_name': plant_data.get('common_name', 'Unknown'),
+                                'image_url': plant_data.get('default_image', {}).get('small_url') if plant_data.get('default_image') else None,
+                                'description': f"A {plant_data.get('type', 'plant')} from our plant database.",
+                                'is_api_result': True
+                            }
+                            local_plants.append(type('Plant', (), api_plant)())
+                except Exception as e:
+                    logger.warning(f"API search failed: {e}")
+            
+            plants = local_plants
+        else:
+            # Load popular plants from API
+            try:
+                from api.perenual import get_plant_list
+                api_response = get_plant_list(page=page)
+                plants = []
+                
+                if api_response and 'data' in api_response:
+                    for plant_data in api_response['data']:
+                        # Create plant objects for display
+                        api_plant = {
+                            'plant_id': f"api_{plant_data.get('id', 0)}",
+                            'scientific_name': plant_data.get('scientific_name', ['Unknown'])[0] if plant_data.get('scientific_name') else 'Unknown',
+                            'common_name': plant_data.get('common_name', 'Unknown'),
+                            'image_url': plant_data.get('default_image', {}).get('small_url') if plant_data.get('default_image') else None,
+                            'description': f"A {plant_data.get('type', 'plant')} from our plant database.",
+                            'is_api_result': True
+                        }
+                        plants.append(type('Plant', (), api_plant)())
+                else:
+                    # Fall back to local database
+                    plants = Plant.query.limit(20).all()
+            except Exception as e:
+                logger.error(f"API request failed: {e}")
+                # Fall back to local database
+                plants = Plant.query.limit(20).all()
+                
+    except Exception as e:
+        logger.error(f"Error in browse_plants: {e}")
+        plants = Plant.query.limit(20).all()
     
-    return render_template('browse_plants.html', plants=plants, search=search)
+    return render_template('browse_plants.html', plants=plants, search=search, page=page)
 
 @app.route('/plant/<int:plant_id>')
 def plant_details(plant_id):
@@ -512,8 +569,8 @@ def search_plants():
     if not query:
         return render_template('search_plants.html', plants=None, query=None)
     
-    # First search the local database
-    db_plants = crud.search_plants(query)
+    # First search the local database (limit to 100 plants)
+    db_plants = crud.search_plants(query, limit=100)
     
     # Format database plants for display
     formatted_plants = []
@@ -534,8 +591,8 @@ def search_plants():
             } if care_details else None
         })
     
-    # If we have fewer than 5 results from the database, supplement with Trefle API
-    if len(formatted_plants) < 5:
+    # If we have fewer than 50 results from the database, supplement with Trefle API
+    if len(formatted_plants) < 50:
         try:
             # Import Trefle API search function
             from api.quantitative_plant import search_plants as search_trefle_plants
@@ -687,5 +744,4 @@ def server_error(e):
     return render_template('500.html'), 500
 
 if __name__ == "__main__":
-    connect_to_db(app)
     app.run(host="0.0.0.0", debug=True, port=5001)

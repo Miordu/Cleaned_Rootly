@@ -37,14 +37,17 @@
                     <h5 class="card-title">{{ plant.common_name }}</h5>
                     <p class="card-text text-muted">{{ plant.scientific_name }}</p>
                     <p class="card-text">
-                        {% if plant.indoor %}
+                        {% if plant.indoor is defined and plant.indoor %}
                         <span class="badge bg-info text-dark me-1">Indoor</span>
                         {% endif %}
-                        {% if plant.outdoor %}
+                        {% if plant.outdoor is defined and plant.outdoor %}
                         <span class="badge bg-success me-1">Outdoor</span>
                         {% endif %}
-                        {% if plant.poisonous_to_pets or plant.poisonous_to_humans %}
+                        {% if (plant.poisonous_to_pets is defined and plant.poisonous_to_pets) or (plant.poisonous_to_humans is defined and plant.poisonous_to_humans) %}
                         <span class="badge bg-danger me-1">Poisonous</span>
+                        {% endif %}
+                        {% if plant.is_api_result is defined and plant.is_api_result %}
+                        <span class="badge bg-secondary me-1">From API</span>
                         {% endif %}
                     </p>
                     <a href="/plant/{{ plant.plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>

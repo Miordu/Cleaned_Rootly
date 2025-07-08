@@ -102,3 +102,53 @@
                             <span class="badge bg-info text-dark me-1">
                                 {{ plant.care_details.watering_frequency }}
                             </span>
+                            {% endif %}
+                            
+                            {% if plant.care_details.difficulty_level %}
+                            <span class="badge bg-secondary text-white me-1">
+                                {{ plant.care_details.difficulty_level }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            {% if plant.in_database %}
+                            <a href="/plant/{{ plant.plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>
+                            {% else %}
+                            <form method="POST" action="/import-plant" style="display: inline;">
+                                <input type="hidden" name="scientific_name" value="{{ plant.scientific_name }}">
+                                <input type="hidden" name="api_source" value="{{ plant.api_source }}">
+                                <input type="hidden" name="external_id" value="{{ plant.plant_id }}">
+                                <button type="submit" class="btn btn-sm btn-success">Import Plant</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% elif query %}
+        <div class="row">
+            <div class="col-12 text-center">
+                <div class="alert alert-info">
+                    <h4>No results found</h4>
+                    <p>Sorry, no plants match your search for "{{ query }}".</p>
+                    <p>Try different keywords or check the spelling.</p>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <div class="row">
+            <div class="col-12 text-center">
+                <div class="alert alert-secondary">
+                    <h4>Search for Plants</h4>
+                    <p>Use the search box above to find plants by name, scientific name, or characteristics.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

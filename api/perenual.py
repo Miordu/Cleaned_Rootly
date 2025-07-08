@@ -1,91 +1,85 @@
 """
-Placeholder module for Perenual API integration.
-Currently disabled - returns mock data instead.
+Integration with the Perenual API to fetch real plant data.
 """
 
+import os
+import requests
 import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load API key from environment
+API_KEY = os.environ.get('PERENUAL_API_KEY')
+BASE_URL = "https://perenual.com/api/v2"
+
 def get_plant_list(page=1, size=20, edible=0):
-    """Return mock plant list data."""
-    logger.info("Using mock data for plant list (Perenual API disabled)")
-    return {
-        "data": [
-            {
-                "id": 1,
-                "common_name": "Example Plant",
-                "scientific_name": ["Example scientific"],
-                "cycle": "Perennial",
-                "watering": "Average",
-                "sunlight": ["full sun"]
-            }
-        ]
-    }
+    """Fetch plant list from the Perenual API."""
+    try:
+        params = {
+            "key": API_KEY,
+            "page": page,
+            "size": size,
+            "edible": edible
+        }
+        response = requests.get(f"{BASE_URL}/species-list", params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching plant list: {e}")
+        return {"data": []}  # Return empty data on error
 
 def get_plant_details(plant_id):
-    """Return mock plant details."""
-    logger.info(f"Using mock data for plant details ID {plant_id} (Perenual API disabled)")
-    return {
-        "id": plant_id,
-        "common_name": "Example Plant",
-        "scientific_name": ["Example scientific"],
-        "cycle": "Perennial",
-        "watering": "Average",
-        "sunlight": ["full sun"],
-        "description": "This is a placeholder description since the Perenual API is currently disabled."
-    }
+    """Fetch plant details from the Perenual API."""
+    try:
+        params = {"key": API_KEY}
+        response = requests.get(f"{BASE_URL}/species/details/{plant_id}", params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching plant details: {e}")
+        return {}  # Return empty object on error
 
 def search_plants(query):
-    """Return mock search results."""
-    logger.info(f"Using mock data for plant search '{query}' (Perenual API disabled)")
-    return {
-        "data": [
-            {
-                "id": 1,
-                "common_name": f"Search result for: {query}",
-                "scientific_name": ["Example scientific"],
-                "cycle": "Perennial",
-                "watering": "Average",
-                "sunlight": ["full sun"]
-            }
-        ]
-    }
-
+    """Search plants using the Perenual API."""
+    try:
+        params = {
+            "key": API_KEY,
+            "q": query
+        }
+        response = requests.get(f"{BASE_URL}/species-list", params=params)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error searching plants: {e}")
+        return {"data": []}  # Return empty data on error
 def get_care_guide(plant_id):
-    """Return mock care guide data."""
-    logger.info(f"Using mock data for care guide ID {plant_id} (Perenual API disabled)")
-    return {
-        "data": [
-            {
-                "section": "watering",
-                "description": "Water regularly, allowing soil to dry between waterings."
-            },
-            {
-                "section": "sunlight",
-                "description": "Bright, indirect light"
-            }
-        ]
-    }
+    """Fetch care guide from the Perenual API."""
+    try:
+        response = requests.get(f"{BASE_URL}/plants/{plant_id}/care", headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching care guide: {e}")
+        return {"data": []}  # Return empty data on error
 
 def map_plant_to_model(perenual_data):
-    """Map mock data to model structure."""
+    """Map Perenual API data to model structure."""
     return {
-        'scientific_name': perenual_data.get('scientific_name', ['Unknown'])[0],
+        'scientific_name': perenual_data.get('scientific_name', 'Unknown'),
         'common_name': perenual_data.get('common_name', 'Unknown Plant'),
         'description': perenual_data.get('description', 'No description available.'),
-        'indoor': True,
-        'data_sources': ['mock']
+        'indoor': perenual_data.get('indoor', False),
+        'data_sources': ['Perenual']
     }
 
 def map_care_to_model(perenual_care_data):
-    """Map mock care data to model structure."""
+    """Map care data from Perenual API to model structure."""
     return {
-        'watering_frequency': 'Weekly',
-        'sunlight_requirements': ['Bright indirect light'],
-        'soil_preferences': 'Well-draining potting mix',
-        'temperature_range': '65-80°F',
-        'difficulty_level': 'Easy'
+        'watering_frequency': perenual_care_data.get('watering', 'Weekly'),
+        'sunlight_requirements': [section['description'] for section in perenual_care_data if section['section'] == 'sunlight'],
+        'soil_preferences': perenual_care_data.get('soil', 'Well-draining potting mix'),
+        'temperature_range': perenual_care_data.get('temperature', '65-80°F'),
+        'difficulty_level': perenual_care_data.get('difficulty', 'Easy')
     }

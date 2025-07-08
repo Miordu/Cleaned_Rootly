@@ -1,0 +1,56 @@
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.DS_Store
+static/uploads/*
+# Ignore the MD files folder
+MD\ files/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+env/
+venv/
+ENV/
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment Variables
+.env
+
+# Database
+*.db
+*.sqlite
+
+# Uploads
+static/uploads/*
+!static/uploads/.gitkeep
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -111,13 +111,18 @@ def get_plant_by_scientific_name(scientific_name):
     """Return a plant by scientific name."""
     return Plant.query.filter(Plant.scientific_name == scientific_name).first()
 
-def search_plants(query):
+def search_plants(query, limit=100):
     """Search for plants by name."""
     search_term = f"%{query}%"
-    return Plant.query.filter(
+    query_obj = Plant.query.filter(
         (Plant.scientific_name.ilike(search_term)) | 
         (Plant.common_name.ilike(search_term))
-    ).all()
+    )
+    
+    if limit:
+        query_obj = query_obj.limit(limit)
+    
+    return query_obj.all()
 
 def filter_plants(plant_type=None, indoor=None, outdoor=None, poisonous=None, tropical=None):
     """Filter plants by various attributes."""
