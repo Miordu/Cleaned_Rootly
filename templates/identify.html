@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Identify a Plant - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Identify a Plant</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Upload an Image</h5>
+                    <p class="card-text">Take a clear photo of the plant you want to identify. For best results, include leaves, flowers, and the overall shape.</p>
+                    
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="plant_image" class="form-label">Choose an image</label>
+                            <input class="form-control" type="file" id="plant_image" name="plant_image" accept="image/*">
+                        </div>
+                        <button type="submit" class="btn btn-success">Identify Plant</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Tips for Better Identification</h5>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">Take photos in good lighting</li>
+                        <li class="list-group-item">Capture distinctive features like leaf patterns</li>
+                        <li class="list-group-item">Include flowers or fruit if available</li>
+                        <li class="list-group-item">Take multiple angles if needed</li>
+                        <li class="list-group-item">Avoid blurry or dark images</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

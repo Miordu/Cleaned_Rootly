@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Add Plant - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Add to My Collection</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Add a Plant</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="plant_id" class="form-label">Plant</label>
+                            <select class="form-select" id="plant_id" name="plant_id" required>
+                                <option value="">Select a plant</option>
+                                {% for plant in plants %}
+                                <option value="{{ plant.plant_id }}">{{ plant.common_name }} ({{ plant.scientific_name }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="nickname" class="form-label">Nickname (Optional)</label>
+                            <input type="text" class="form-control" id="nickname" name="nickname" placeholder="E.g., Living Room Monstera">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="location" class="form-label">Location (Optional)</label>
+                            <input type="text" class="form-control" id="location" name="location" placeholder="E.g., Living Room">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-success">Add to Collection</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Or Identify a New Plant</h5>
+                </div>
+                <div class="card-body text-center py-5">
+                    <p class="mb-4">Can't find the plant you're looking for? Use our plant identification feature to identify it first.</p>
+                    <a href="/identify" class="btn btn-outline-success">Identify a Plant</a>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Quick Tips</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">Give your plants unique nicknames to easily identify them</li>
+                        <li class="list-group-item">Note the location to help track light conditions</li>
+                        <li class="list-group-item">Add reminders after adding your plant to stay on top of care</li>
+                        <li class="list-group-item">Upload a photo of your specific plant later in the details page</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

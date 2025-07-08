@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+{% block title %}{{ user_plant.nickname or user_plant.plant.common_name }} - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                {% if user_plant.image_url %}
+                <img src="{{ user_plant.image_url }}" class="card-img-top" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                {% elif user_plant.plant.image_url %}
+                <img src="{{ user_plant.plant.image_url }}" class="card-img-top" alt="{{ user_plant.nickname or user_plant.plant.common_name }}">
+                {% else %}
+                <div class="bg-light text-center p-5">
+                    <span class="text-muted">No image available</span>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                    <h1 class="card-title h3">{{ user_plant.nickname or user_plant.plant.common_name }}</h1>
+                    <p class="text-muted font-italic">{{ user_plant.plant.scientific_name }}</p>
+                    
+                    {% if user_plant.location_in_home %}
+                    <p><strong>Location:</strong> {{ user_plant.location_in_home }}</p>
+                    {% endif %}
+                    
+                    {% if user_plant.acquisition_date %}
+                    <p><strong>Added on:</strong> {{ user_plant.acquisition_date.strftime('%B %d, %Y') }}</p>
+                    {% endif %}
+                    
+                    {% if user_plant.status %}
+                    <p><strong>Status:</strong> <span class="badge bg-{{ 'success' if user_plant.status == 'active' else 'warning' }}">{{ user_plant.status|capitalize }}</span></p>
+                    {% endif %}
+                    
+                    <div class="mt-4 d-grid gap-2">
+                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#logCareModal">Log Care</button>
+                        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#healthAssessmentModal">Health Check</button>
+                        <a href="/edit-user-plant/{{ user_plant.user_plant_id }}" class="btn btn-outline-secondary">Edit Details</a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Upcoming Care</h5>
+                </div>
+                <div class="card-body">
+                    {% if reminders %}
+                    <ul class="list-group list-group-flush">
+                        {% for reminder in reminders %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ reminder.reminder_type }}
+                            <span class="badge bg-primary rounded-pill">{{ reminder.next_reminder_date.strftime('%b %d') }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-center">No upcoming reminders</p>
+                    <div class="d-grid">
+                        <button class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#addReminderModal">Add Reminder</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Care History</h5>
+                    <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#logCareModal">+ Log Care</button>
+                </div>
+                <div class="card-body">
+                    {% if care_events %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Care Type</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for event in care_events %}
+                                <tr>
+                                    <td>{{ event.date.strftime('%b %d, %Y') }}</td>
+                                    <td>{{ event.event_type }}</td>
+                                    <td>{{ event.notes or '' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center py-3">No care events logged yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Plant Information</h5>
+                </div>
+                <div class="card-body">
+                    <h6>About this Plant</h6>
+                    <p>{{ user_plant.plant.description or 'No description available.' }}</p>
+                    
+                    {% if care_details %}
+                    <hr>
+                    <h6>Care Tips</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>Watering:</strong>
+                            <p>{{ care_details.watering_frequency or 'Not specified' }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Sunlight:</strong>
+                            <p>
+                                {% if care_details.sunlight_requirements %}
+                                    {{ care_details.sunlight_requirements|join(', ') }}
+                                {% else %}
+                                    Not specified
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Soil:</strong>
+                            <p>{{ care_details.soil_preferences or 'Not specified' }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Difficulty:</strong>
+                            <p>{{ care_details.difficulty_level or 'Not specified' }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <a href="/plant/{{ user_plant.plant.plant_id }}" class="btn btn-sm btn-outline-success">View Full Plant Details</a>
+                </div>
+            </div>
+            
+            {% if health_assessments %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Health History</h5>
+                </div>
+                <div class="card-body">
+                    <div class="accordion" id="healthAccordion">
+                        {% for assessment in health_assessments %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="heading{{ assessment.assessment_id }}">
+                                <button class="accordion-button {{ 'collapsed' if not loop.first }}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ assessment.assessment_id }}" aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="collapse{{ assessment.assessment_id }}">
+                                    {{ assessment.assessment_date.strftime('%B %d, %Y') }} - {{ assessment.diagnosis }}
+                                    {% if assessment.resolved %}
+                                    <span class="badge bg-success ms-2">Resolved</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark ms-2">Active</span>
+                                    {% endif %}
+                                </button>
+                            </h2>
+                            <div id="collapse{{ assessment.assessment_id }}" class="accordion-collapse collapse {{ 'show' if loop.first }}" aria-labelledby="heading{{ assessment.assessment_id }}" data-bs-parent="#healthAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6>Symptoms:</h6>
+                                            <ul>
+                                                {% for symptom in assessment.symptoms %}
+                                                <li>{{ symptom }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                            
+                                            <h6>Treatment Recommendations:</h6>
+                                            <p>{{ assessment.treatment_recommendations or 'None provided' }}</p>
+                                            
+                                            {% if not assessment.resolved %}
+                                            <form action="/resolve-health-issue/{{ assessment.assessment_id }}" method="POST" class="mt-3">
+                                                <button type="submit" class="btn btn-sm btn-success">Mark as Resolved</button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-4">
+                                            {% if assessment.image_url %}
+                                            <img src="{{ assessment.image_url }}" class="img-fluid rounded" alt="Health assessment image">
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Log Care Modal -->
+    <div class="modal fade" id="logCareModal" tabindex="-1" aria-labelledby="logCareModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="logCareModalLabel">Log Care for {{ user_plant.nickname or user_plant.plant.common_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/log-care" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="user_plant_id" value="{{ user_plant.user_plant_id }}">
+                        
+                        <div class="mb-3">
+                            <label for="event_type" class="form-label">Care Type</label>
+                            <select class="form-select" id="event_type" name="event_type" required>
+                                <option value="">Select care type</option>
+                                <option value="Watering">Watering</option>
+                                <option value="Fertilizing">Fertilizing</option>
+                                <option value="Pruning">Pruning</option>
+                                <option value="Repotting">Repotting</option>
+                                <option value="Misting">Misting</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Health Assessment Modal -->
+    <div class="modal fade" id="healthAssessmentModal" tabindex="-1" aria-labelledby="healthAssessmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="healthAssessmentModalLabel">Health Check for {{ user_plant.nickname or user_plant.plant.common_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/add-health-assessment" method="POST" enctype="multipart/form-data">
+                    <div class="modal-body">
+                        <input type="hidden" name="user_plant_id" value="{{ user_plant.user_plant_id }}">
+                        
+                        <div class="mb-3">
+                            <label for="symptoms" class="form-label">Symptoms (Select all that apply)</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Yellow leaves" id="symptom1">
+                                <label class="form-check-label" for="symptom1">Yellow leaves</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Brown leaf tips" id="symptom2">
+                                <label class="form-check-label" for="symptom2">Brown leaf tips</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Wilting" id="symptom3">
+                                <label class="form-check-label" for="symptom3">Wilting</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Leaf spots" id="symptom4">
+                                <label class="form-check-label" for="symptom4">Leaf spots</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Drooping" id="symptom5">
+                                <label class="form-check-label" for="symptom5">Drooping</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="symptoms" value="Pests visible" id="symptom6">
+                                <label class="form-check-label" for="symptom6">Pests visible</label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="diagnosis" class="form-label">Diagnosis</label>
+                            <input type="text" class="form-control" id="diagnosis" name="diagnosis" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="treatment_recommendations" class="form-label">Treatment Recommendations</label>
+                            <textarea class="form-control" id="treatment_recommendations" name="treatment_recommendations" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Upload Image (Optional)</label>
+                            <input class="form-control" type="file" id="image" name="image" accept="image/*">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Reminder Modal -->
+    <div class="modal fade" id="addReminderModal" tabindex="-1" aria-labelledby="addReminderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addReminderModalLabel">Add Reminder for {{ user_plant.nickname or user_plant.plant.common_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="/add-reminder" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="user_plant_id" value="{{ user_plant.user_plant_id }}">
+                        
+                        <div class="mb-3">
+                            <label for="reminder_type" class="form-label">Reminder Type</label>
+                            <select class="form-select" id="reminder_type" name="reminder_type" required>
+                                <option value="">Select reminder type</option>
+                                <option value="Watering">Watering</option>
+                                <option value="Fertilizing">Fertilizing</option>
+                                <option value="Pruning">Pruning</option>
+                                <option value="Repotting">Repotting</option>
+                                <option value="Misting">Misting</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="frequency" class="form-label">Frequency</label>
+                            <select class="form-select" id="frequency" name="frequency" required>
+                                <option value="">Select frequency</option>
+                                <option value="Daily">Daily</option>
+                                <option value="Weekly">Weekly</option>
+                                <option value="Biweekly">Biweekly</option>
+                                <option value="Monthly">Monthly</option>
+                                <option value="Seasonally">Seasonally</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="next_reminder_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="next_reminder_date" name="next_reminder_date" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
