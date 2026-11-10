@@ -1,56 +1,41 @@
+# Virtual environments (recreate with: python3 -m venv env && pip install -r requirements.txt)
 env/
-__pycache__/
-*.py[cod]
-*$py.class
-.env
-.DS_Store
-static/uploads/*
-# Ignore the MD files folder
-MD\ files/
-# Python
+venv/
+ENV/
+
+# Python build and cache files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
 *.egg-info/
-.installed.cfg
-*.egg
+.eggs/
+.pytest_cache/
 
-# Virtual Environment
-env/
-venv/
-ENV/
+# Secrets and local settings (copy .env.example to .env)
+.env
+
+# Local databases
+*.db
+*.sqlite
+
+# Photos people upload while using the app
+static/uploads/*
+!static/uploads/.gitkeep
 
 # Flask
 instance/
 .webassets-cache
 
-# Environment Variables
-.env
-
-# Database
-*.db
-*.sqlite
-
-# Uploads
-static/uploads/*
-!static/uploads/.gitkeep
-
-# IDE specific files
+# Mac and editor files
+.DS_Store
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# Notes folder kept outside the repo
+MD\ files/
