@@ -18,13 +18,29 @@ load_dotenv()
 app = Flask(__name__)
 app.jinja_env.undefined = StrictUndefined
 
-# Set up secret key for sessions and debug
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 
-# Configure upload folder for plant images
-UPLOAD_FOLDER = 'static/uploads'
+def env_flag(name, default=False):
+    """Read a true/false setting such as DEBUG=True from the environment."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+# Set up secret key for sessions
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not app.secret_key:
+    app.secret_key = 'dev-secret-key'
+    print("WARNING: FLASK_SECRET_KEY is not set, using an insecure development key.")
+
+# Configure upload folder for plant images. Built from this file's location so
+# uploads land in the right place no matter which folder you start the app from.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Reject uploads bigger than 16 MB instead of filling the disk
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -36,15 +52,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize database connection
-from model import connect_to_db
-connect_to_db(app)
+# Initialize database connection (uses DATABASE_URI from .env if set)
+connect_to_db(app, echo=env_flag('SQLALCHEMY_ECHO'))
 
 # Helper functions
 def allowed_file(filename):
     """Check if the file extension is allowed"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def stale_session_redirect():
+    """Log out a browser whose saved user no longer exists in the database."""
+    session.pop('user_id', None)
+    flash('Please log in again.')
+    return redirect('/login')
 
 # Routes
 @app.route('/')
@@ -116,7 +137,9 @@ def dashboard():
         return redirect('/login')
     
     user = db.session.get(User, session['user_id'])
-    
+    if user is None:
+        return stale_session_redirect()
+
     return render_template('dashboard.html', user=user)
 
 @app.route('/identify', methods=['GET', 'POST'])
@@ -203,6 +226,8 @@ def my_plants():
         return redirect('/login')
     
     user = db.session.get(User, session['user_id'])
+    if user is None:
+        return stale_session_redirect()
     user_plants = UserPlant.query.filter_by(user_id=user.user_id).all()
     
     return render_template('my_plants.html', user=user, user_plants=user_plants)
@@ -215,10 +240,15 @@ def add_plant():
         return redirect('/login')
     
     if request.method == 'POST':
-        plant_id = request.form.get('plant_id')
+        plant_id = request.form.get('plant_id', type=int)
         nickname = request.form.get('nickname')
         location = request.form.get('location')
-        
+
+        # Without this check, a missing or made-up plant_id crashes with a 500
+        if not plant_id or not db.session.get(Plant, plant_id):
+            flash('Please choose a plant from the list.')
+            return redirect('/add-plant')
+
         new_user_plant = UserPlant(
             user_id=session['user_id'],
             plant_id=plant_id,
@@ -243,7 +273,8 @@ def browse_plants():
     """Browse plants from APIs and database."""
     # Get search parameter
     search = request.args.get('search', '')
-    page = int(request.args.get('page', 1))
+    # type=int returns the default instead of crashing on ?page=abc
+    page = max(request.args.get('page', 1, type=int), 1)
     
     try:
         if search:
@@ -294,8 +325,11 @@ def browse_plants():
                             'is_api_result': True
                         }
                         plants.append(type('Plant', (), api_plant)())
-                else:
-                    # Fall back to local database
+
+                if not plants:
+                    # The API sent nothing back (no key, API down, or empty
+                    # page), so show the plants already in our database.
+                    # Before, an empty API answer left the page blank.
                     plants = Plant.query.limit(20).all()
             except Exception as e:
                 logger.error(f"API request failed: {e}")
@@ -311,7 +345,7 @@ def browse_plants():
 @app.route('/plant/<int:plant_id>')
 def plant_details(plant_id):
     """Show details for a specific plant."""
-    plant = Plant.query.get_or_404(plant_id)
+    plant = db.get_or_404(Plant, plant_id)
     care_details = PlantCareDetails.query.filter_by(plant_id=plant_id).first()
     
     return render_template('plant_details.html', plant=plant, care_details=care_details)
@@ -323,7 +357,7 @@ def user_plant_details(user_plant_id):
         flash('Please log in to view your plants.')
         return redirect('/login')
     
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     
     # Ensure the plant belongs to the logged-in user
     if user_plant.user_id != session['user_id']:
@@ -356,12 +390,12 @@ def log_care():
         flash('Please log in to log care events.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     event_type = request.form.get('event_type')
     notes = request.form.get('notes')
     
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
@@ -387,17 +421,24 @@ def add_reminder():
         flash('Please log in to add reminders.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     reminder_type = request.form.get('reminder_type')
     frequency = request.form.get('frequency')
     next_reminder_date = request.form.get('next_reminder_date')
-    
+
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
-    
+
+    # A blank or badly formatted date used to crash the page with a database error
+    try:
+        next_reminder_date = date.fromisoformat(next_reminder_date or '')
+    except ValueError:
+        flash('Please pick a date for the reminder.')
+        return redirect(f'/user-plant/{user_plant_id}')
+
     # Create the reminder
     new_reminder = Reminder(
         user_plant_id=user_plant_id,
@@ -420,10 +461,10 @@ def add_health_assessment():
         flash('Please log in to add health assessments.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
@@ -504,10 +545,10 @@ def resolve_health_issue(assessment_id):
         return redirect('/login')
     
     # Get the assessment
-    assessment = HealthAssessment.query.get_or_404(assessment_id)
+    assessment = db.get_or_404(HealthAssessment, assessment_id)
     
     # Verify the assessment belongs to a plant owned by the user
-    user_plant = UserPlant.query.get(assessment.user_plant_id)
+    user_plant = db.session.get(UserPlant, assessment.user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this assessment.')
         return redirect('/my-plants')
@@ -526,7 +567,7 @@ def edit_user_plant(user_plant_id):
         flash('Please log in to edit your plants.')
         return redirect('/login')
     
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     
     # Ensure the plant belongs to the logged-in user
     if user_plant.user_id != session['user_id']:
@@ -744,4 +785,9 @@ def server_error(e):
     return render_template('500.html'), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=True, port=5001)
+    # Debug mode turns on Flask's interactive debugger, which lets anyone who
+    # can reach the page run Python code. Only turn it on with DEBUG=True in
+    # your local .env, and keep the app on 127.0.0.1 unless you set HOST.
+    app.run(host=os.environ.get('HOST', '127.0.0.1'),
+            port=int(os.environ.get('PORT', 5001)),
+            debug=env_flag('DEBUG'))

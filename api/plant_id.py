@@ -2,6 +2,10 @@
 
 import os
 import requests
+
+# Seconds to wait for the plant API before giving up, so a slow API
+# can't freeze a page in the app.
+REQUEST_TIMEOUT = 10
 import base64
 import logging
 from typing import Dict, List, Optional
@@ -67,7 +71,7 @@ class PlantDotIDAPI:
         }
         
         try:
-            response = requests.post(f"{self.base_url}/identify", json=data, headers=headers)
+            response = requests.post(f"{self.base_url}/identify", json=data, headers=headers, timeout=REQUEST_TIMEOUT)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:

@@ -1,89 +1,105 @@
-"""Test script for API integrations."""
+"""Tests for the plant API helpers in api/.
+
+These never call the real APIs: `requests` is swapped for a fake so the
+tests run offline, cost no API credits, and check how the code behaves when
+an API is down or a key is missing.
+
+To check your real keys against the live APIs, run:
+    RUN_LIVE_API_TESTS=1 pytest tests/test_apis.py -k live
+"""
 
 import os
+
+import pytest
 import requests
-from dotenv import load_dotenv
-import logging
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+import api.perenual as perenual
+import api.quantitative_plant as trefle
+import api.plant_health as plant_health
 
-# Load environment variables
-load_dotenv()
 
-def test_perenual_api():
-    """Test Perenual API integration."""
-    logger.info("Testing Perenual API...")
-    
-    # Get API key
-    api_key = os.environ.get('PERENUAL_API_KEY')
-    logger.info(f"API key is set: {bool(api_key)}")
-    
-    # Create URL with v2 endpoint
-    url = f"https://perenual.com/api/v2/species-list?key={api_key}&page=1&size=1"
-    logger.info(f"Making request to: {url.replace(api_key, 'API_KEY_HIDDEN')}")
-    
-    try:
-        response = requests.get(url)
-        logger.info(f"Status code: {response.status_code}")
-        
-        if response.status_code == 200:
-            logger.info("API call successful!")
-            logger.info(f"Response begins with: {response.text[:100]}...")
-            return True
-        else:
-            logger.error(f"API call failed: {response.text}")
-            return False
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return False
+class FakeResponse:
+    def __init__(self, payload, status=200):
+        self.payload, self.status_code = payload, status
 
-def test_plant_id_api():
-    """Test Plant.id API integration."""
-    logger.info("Testing Plant.id API...")
-    
-    # Check if API key is set
-    api_key = os.environ.get('PLANT_ID_API_KEY')
-    if not api_key:
-        logger.error("Plant.id API key not found in environment variables")
-        return False
-    
-    logger.info("Plant.id API key is set")
-    # For Plant.id, we'll skip actual API calls to conserve credits
-    return True
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.exceptions.HTTPError(f"{self.status_code} error")
 
-def test_trefle_api():
-    """Test Trefle API integration."""
-    logger.info("Testing Trefle API...")
-    
-    # Check if API key is set
-    api_key = os.environ.get('TREFLE_API_KEY')
-    if not api_key:
-        logger.error("Trefle API key not found in environment variables")
-        return False
-    
-    logger.info("Trefle API key is set")
-    # For Trefle, we'll skip actual API calls to conserve credits
-    return True
+    def json(self):
+        return self.payload
 
-def main():
-    """Run all API tests."""
-    logger.info("Starting API integration tests...")
-    
-    # Test each API
-    perenual_success = test_perenual_api()
-    plant_id_success = test_plant_id_api()
-    trefle_success = test_trefle_api()
-    
-    # Summarize results
-    logger.info("\n--- TEST RESULTS ---")
-    logger.info(f"Perenual API: {'✅ PASS' if perenual_success else '❌ FAIL'}")
-    logger.info(f"Plant.id API: {'✅ PASS' if plant_id_success else '❌ FAIL'}")
-    logger.info(f"Trefle API: {'✅ PASS' if trefle_success else '❌ FAIL'}")
-    
-    return all([perenual_success, plant_id_success, trefle_success])
 
-if __name__ == "__main__":
-    success = main()
-    print(f"Test result: {'SUCCESS' if success else 'FAILURE'}")
+def test_perenual_returns_data_and_sends_timeout(monkeypatch):
+    seen = {}
+
+    def fake_get(url, **kwargs):
+        seen.update(kwargs, url=url)
+        return FakeResponse({"data": [{"id": 1}]})
+
+    monkeypatch.setattr(perenual.requests, "get", fake_get)
+    assert perenual.get_plant_list() == {"data": [{"id": 1}]}
+    assert seen["timeout"] == perenual.REQUEST_TIMEOUT
+
+
+def test_perenual_handles_api_down(monkeypatch):
+    def boom(url, **kwargs):
+        raise requests.exceptions.ConnectionError("down")
+
+    monkeypatch.setattr(perenual.requests, "get", boom)
+    assert perenual.get_plant_list() == {"data": []}
+    assert perenual.search_plants("rose") == {"data": []}
+    assert perenual.get_plant_details(1) == {}
+
+
+def test_perenual_care_guide_no_longer_crashes(monkeypatch):
+    # Used to raise NameError: name 'headers' is not defined
+    monkeypatch.setattr(perenual.requests, "get",
+                        lambda url, **kw: FakeResponse({}, status=404))
+    assert perenual.get_care_guide(1) == {"data": []}
+
+
+def test_perenual_map_plant_to_model():
+    mapped = perenual.map_plant_to_model({"scientific_name": ["Abies alba"], "common_name": "Fir"})
+    assert mapped["common_name"] == "Fir"
+
+
+def test_trefle_without_key_returns_error(monkeypatch):
+    monkeypatch.setattr(trefle, "TREFLE_API_KEY", None)
+    assert "error" in trefle.get_plant_list()
+    assert "error" in trefle.search_plants("rose")
+
+
+def test_trefle_with_key(monkeypatch):
+    monkeypatch.setattr(trefle, "TREFLE_API_KEY", "fake-key")
+    monkeypatch.setattr(trefle.requests, "get",
+                        lambda url, **kw: FakeResponse({"data": [{"id": 9}]}))
+    assert trefle.search_plants("rose") == {"data": [{"id": 9}]}
+
+
+def test_trefle_growth_mapping_handles_empty_data():
+    assert isinstance(trefle.map_growth_data_to_model({}), dict)
+
+
+def test_plant_health_without_key(monkeypatch, tmp_path):
+    monkeypatch.setattr(plant_health, "PLANT_ID_API_KEY", None)
+    image = tmp_path / "leaf.jpg"
+    image.write_bytes(b"img")
+    assert "error" in plant_health.assess_health(str(image))
+
+
+# ---------- optional live checks (skipped unless you ask for them) ----------
+
+live = pytest.mark.skipif(os.environ.get("RUN_LIVE_API_TESTS") != "1",
+                          reason="set RUN_LIVE_API_TESTS=1 to call the real APIs")
+
+
+@live
+def test_live_perenual():
+    from dotenv import dotenv_values
+    key = dotenv_values().get("PERENUAL_API_KEY")
+    if not key:
+        pytest.skip("PERENUAL_API_KEY is not in .env")
+    response = requests.get("https://perenual.com/api/v2/species-list",
+                            params={"key": key, "page": 1, "size": 1}, timeout=10)
+    assert response.status_code == 200

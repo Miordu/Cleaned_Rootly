@@ -43,7 +43,7 @@ def merge_plant_data(scientific_name, perenual_id=None, trefle_id=None):
     
     # Add Trefle data if ID is provided
     if trefle_id:
-        from api.quantitative_plant import get_trefle_plant_details, get_growth_data, map_growth_data_to_model
+        from api.quantitative_plant import get_plant_details as get_trefle_plant_details, get_growth_data, map_growth_data_to_model
         
         logger.info(f"Fetching Trefle data for ID: {trefle_id}")
         trefle_plant_data = get_trefle_plant_details(trefle_id)

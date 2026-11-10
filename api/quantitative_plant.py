@@ -2,6 +2,10 @@
 
 import os
 import requests
+
+# Seconds to wait for the plant API before giving up, so a slow API
+# can't freeze a page in the app.
+REQUEST_TIMEOUT = 10
 import logging
 from dotenv import load_dotenv
 
@@ -39,7 +43,7 @@ def get_plant_list(page=1, limit=20):
             'limit': limit
         }
         
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         
         return response.json()
@@ -67,7 +71,7 @@ def get_plant_details(plant_id):
             'token': TREFLE_API_KEY
         }
         
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         
         return response.json()
@@ -96,7 +100,7 @@ def search_plants(query):
             'q': query
         }
         
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         
         return response.json()

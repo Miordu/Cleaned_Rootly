@@ -2,6 +2,10 @@
 
 import os
 import requests
+
+# Seconds to wait for the plant API before giving up, so a slow API
+# can't freeze a page in the app.
+REQUEST_TIMEOUT = 10
 import base64
 import logging
 from dotenv import load_dotenv
@@ -50,7 +54,7 @@ def assess_health(image_path):
             'Api-Key': PLANT_ID_API_KEY
         }
         
-        response = requests.post(f"{BASE_URL}/health_assessment", json=data, headers=headers)
+        response = requests.post(f"{BASE_URL}/health_assessment", json=data, headers=headers, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         
         return response.json()
@@ -92,7 +96,7 @@ def assess_health_from_binary(image_binary):
             'Api-Key': PLANT_ID_API_KEY
         }
         
-        response = requests.post(f"{BASE_URL}/health_assessment", json=data, headers=headers)
+        response = requests.post(f"{BASE_URL}/health_assessment", json=data, headers=headers, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         
         return response.json()

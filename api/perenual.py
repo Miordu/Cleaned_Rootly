@@ -4,6 +4,10 @@ Integration with the Perenual API to fetch real plant data.
 
 import os
 import requests
+
+# Seconds to wait for the plant API before giving up, so a slow API
+# can't freeze a page in the app.
+REQUEST_TIMEOUT = 10
 import logging
 
 # Set up logging
@@ -23,7 +27,7 @@ def get_plant_list(page=1, size=20, edible=0):
             "size": size,
             "edible": edible
         }
-        response = requests.get(f"{BASE_URL}/species-list", params=params)
+        response = requests.get(f"{BASE_URL}/species-list", params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -34,7 +38,7 @@ def get_plant_details(plant_id):
     """Fetch plant details from the Perenual API."""
     try:
         params = {"key": API_KEY}
-        response = requests.get(f"{BASE_URL}/species/details/{plant_id}", params=params)
+        response = requests.get(f"{BASE_URL}/species/details/{plant_id}", params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -48,7 +52,7 @@ def search_plants(query):
             "key": API_KEY,
             "q": query
         }
-        response = requests.get(f"{BASE_URL}/species-list", params=params)
+        response = requests.get(f"{BASE_URL}/species-list", params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -57,7 +61,7 @@ def search_plants(query):
 def get_care_guide(plant_id):
     """Fetch care guide from the Perenual API."""
     try:
-        response = requests.get(f"{BASE_URL}/plants/{plant_id}/care", headers=headers)
+        response = requests.get(f"{BASE_URL}/plants/{plant_id}/care", params={"key": API_KEY}, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
