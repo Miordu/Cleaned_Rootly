@@ -334,14 +334,25 @@ def add_reminder(user_plant, reminder_type, frequency, next_date):
     return reminder
 
 
-def complete_reminder(reminder):
-    """Mark a reminder as done: log the care and move it to its next date."""
+def complete_reminder(reminder, today=None):
+    """Mark a reminder as done: log the care and move it to its next date.
+
+    `today` is the date on the person's phone ("YYYY-MM-DD"), which can be a
+    day ahead of or behind the server's. It's ignored unless it is within a
+    day of the server's date.
+    """
+    try:
+        client_today = date.fromisoformat(today) if today else None
+    except (TypeError, ValueError):
+        client_today = None
+    if client_today is None or abs((client_today - date.today()).days) > 1:
+        client_today = date.today()
     days = REMINDER_FREQUENCIES.get(reminder.frequency, 7)
     db.session.add(CareEvent(user_plant_id=reminder.user_plant_id,
                              event_type=reminder.reminder_type,
                              date=datetime.utcnow(),
                              notes='Logged from a reminder'))
-    reminder.next_reminder_date = date.today() + timedelta(days=days)
+    reminder.next_reminder_date = client_today + timedelta(days=days)
     db.session.commit()
     return reminder
 

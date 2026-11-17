@@ -17,6 +17,8 @@ dist/
 
 # Secrets and local settings (copy .env.example to .env)
 .env
+# The mobile app's .env only holds the server's public address, so it is kept
+!mobile/.env
 
 # Local databases
 *.db

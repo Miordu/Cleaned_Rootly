@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Rootly",
+    "slug": "rootly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.miordu.rootly",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1F3D2B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.miordu.rootly"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1F3D2B",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rootly uses your photo library so you can add photos of your plants.",
+          "cameraPermission": "Rootly uses the camera so you can take photos of your plants.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#3E7C4F"
+        }
+      ]
+    ],
+    "scheme": "rootly"
+  }
+}

@@ -420,7 +420,7 @@ def reminder_done(reminder_id):
     reminder = my_reminder_or_404(reminder_id)
     if reminder is None:
         return error('That reminder could not be found.', 404)
-    services.complete_reminder(reminder)
+    services.complete_reminder(reminder, today=body().get('today'))
     return jsonify({'reminder': reminder_json(reminder, with_plant=True)})
 
 

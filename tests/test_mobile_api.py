@@ -204,10 +204,17 @@ def test_care_reminders_and_dashboard(client, auth, my_plant):
     assert dashboard["plant_count"] == 1 and dashboard["recent_care_count"] == 1
     assert [r["reminder_id"] for r in dashboard["upcoming_reminders"]] == [reminder["reminder_id"]]
 
-    done = client.post(f"{API}/reminders/{reminder['reminder_id']}/done", headers=auth).get_json()["reminder"]
+    # The phone says what day it is there (it can be a day ahead of the server)
+    phone_today = today + timedelta(days=1)
+    done = client.post(f"{API}/reminders/{reminder['reminder_id']}/done",
+                       json={"today": phone_today.isoformat()}, headers=auth).get_json()["reminder"]
+    assert done["next_reminder_date"] == (phone_today + timedelta(days=14)).isoformat()
+    # A date that is far off is ignored and the server's own date is used
+    done = client.post(f"{API}/reminders/{reminder['reminder_id']}/done",
+                       json={"today": "2031-01-01"}, headers=auth).get_json()["reminder"]
     assert done["next_reminder_date"] == (today + timedelta(days=14)).isoformat()
     detail = client.get(f"{API}/my-plants/{upid}", headers=auth).get_json()["plant"]
-    assert len(detail["care_events"]) == 2 and len(detail["reminders"]) == 1
+    assert len(detail["care_events"]) == 3 and len(detail["reminders"]) == 1
     assert detail["care_events"][0]["date"].endswith("Z")
 
     assert len(client.get(f"{API}/reminders", headers=auth).get_json()["reminders"]) == 1

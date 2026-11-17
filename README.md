@@ -28,13 +28,15 @@ care, set reminders, and record health problems and how they were fixed.
 | `server.py` | The Flask app: every page and form |
 | `model.py` | Database tables (SQLAlchemy models) and `connect_to_db` |
 | `crud.py` | Helper functions that create, read, update and delete records |
-| `data_merger.py` | Builds a new plant record from API data |
+| `services.py` | The actions the website and the mobile app share (sign-up, photos, reminders, importing plants) |
+| `mobile_api.py` | The JSON API the mobile app talks to (`/api/v1/...`) |
+| `mobile/` | The iOS and Android app (Expo / React Native) |
+| `render.yaml` | Hosting set-up for Render |
 | `api/quantitative_plant.py` | Trefle API client (keeps to 60 requests a minute) |
-| `seed.py` | Creates the tables and adds sample regions, plants and an admin user |
+| `seed.py` | Creates the tables and adds sample regions, plants and (locally) an admin user. Safe to run again |
 | `populate_plants.py`, `enhanced_seed_plants.py` | Load many plants from Trefle (need `TREFLE_API_KEY`) |
 | `templates/`, `static/` | HTML pages, CSS, JavaScript and images |
 | `tests/` | The automated test suite (run with `pytest`) |
-| `test_flask_app.py`, `check_*.py`, `debug_flask.py` | Manual check scripts that need the app running |
 
 ## Setup
 
@@ -68,8 +70,7 @@ care, set reminders, and record health problems and how they were fixed.
    python3 seed.py
    ```
 
-   `seed.py` expects an empty database. To start over:
-   `dropdb rootly && createdb rootly && python3 seed.py`.
+   To start over: `dropdb rootly && createdb rootly && python3 seed.py`.
    It creates a sample admin account (`admin@rootly.com`, password
    `adminpassword`) for local testing only.
 
@@ -78,6 +79,24 @@ care, set reminders, and record health problems and how they were fixed.
    ```bash
    python3 server.py
    ```
+
+## The mobile app
+
+The iOS and Android app lives in `mobile/`. It uses the same accounts and data
+as the website, through the API in `mobile_api.py`.
+
+```bash
+cd mobile
+npm install
+npx expo start
+```
+
+The app finds the server through `EXPO_PUBLIC_API_URL` in `mobile/.env`.
+Reminder notifications are scheduled on the phone itself (9 in the morning on
+the day care is due), so no notification service is needed.
+
+`LAUNCH_GUIDE.md` explains, step by step and without assuming you can code,
+how to put the server online and get the app onto phones and into the stores.
 
 ## Running the tests
 
@@ -101,6 +120,8 @@ the live API, run `RUN_LIVE_API_TESTS=1 pytest tests/test_apis.py -k live`.
 | `TREFLE_API_KEY` | Your Trefle access token (free at trefle.io) |
 | `DEBUG` | `True` turns on Flask's debugger. Only on your own computer. |
 | `HOST`, `PORT` | Where the dev server listens (default `127.0.0.1:5001`) |
+| `APP_ENV` | Set to `production` on the live site: requires a real secret key, https-only cookies, no sample admin |
+| `CONTACT_EMAIL` | Shown on the privacy page (optional) |
 
 ## About the Trefle limit
 

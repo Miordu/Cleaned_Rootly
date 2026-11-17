@@ -188,3 +188,54 @@ dashboard counts are real.
 | Full suite after the change | 73 passed, 1 skipped (the optional live Trefle check) |
 | Manual run of the app, logged in | `/`, `/browse-plants`, `/browse-plants?search=fig`, `/dashboard`, `/my-plants`, `/add-plant`, `/search-plants`, `/search-plants?query=fig`, `/plant/1` all 200; `/identify` redirects to search |
 | `populate_plants.py` and `enhanced_seed_plants.py` with no token | Both stop cleanly and say the token is missing |
+
+## 9. Nov 17: review fixes, mobile API and mobile app
+
+### Bugs fixed (each has a test)
+
+| Problem | Fix |
+| --- | --- |
+| "View Details" on every Trefle card on the browse page was a 404 (`/plant/api_123`) | The button now copies the plant in and opens its page |
+| Browse page: filter buttons did nothing, no next/previous page, search box forgot what you typed | All three work |
+| Signing up without a username or password crashed (500); one-character passwords were accepted | Checked, with a clear message; passwords need 8 characters |
+| Any logged-in user could add made-up plants to the shared catalogue through `/import-plant` | Plants can only come from Trefle. `data_merger.py` (the placeholder maker) is deleted |
+| No CSRF protection; logout was a plain link | Every form has a hidden token; logout is a form |
+| Reminders could not be marked done or deleted; plants could not be removed; accounts could not be deleted | All added, on the website and in the API |
+| Any file named `.jpg` was saved as a photo, on the server's disk | Photos are checked, shrunk to 1600 px and stored in the database, so they survive redeploys |
+| The Trefle rate limiter could freeze a page for up to a minute | Pages get "try again shortly" after 3 seconds; the seed scripts still wait |
+| Import errors showed raw database errors | Plain message; details go to the log |
+| Plant pages showed Lorem ipsum | Real description is back |
+| Unlimited password guesses | 10 wrong passwords for one email locks it for 15 minutes |
+| Leftover `/search-plants-template` page | Removed |
+
+### Added
+
+- `mobile_api.py`: JSON API under `/api/v1` with token login (only a hash of the token is stored)
+- `services.py`: the logic shared by the website and the API
+- `mobile/`: the iOS and Android app (Expo SDK 58)
+- `render.yaml`, gunicorn, `/healthz`, `/privacy`, `/account`
+- `seed.py` can be run repeatedly and skips the sample admin on the live site
+
+### Removed
+
+`FIX_SUMMARY.md` (out of date) and the manual scripts `test_flask_app.py`,
+`test_fixes.py`, `debug_flask.py`, `check_homepage.py`, `check_plants.py`,
+`check_count.py` (they no longer worked and the pytest suite covers them).
+
+### How it was checked
+
+| Check | Result |
+| --- | --- |
+| `pytest` | 105 passed, 1 skipped (the optional live Trefle check) |
+| Server under gunicorn with `APP_ENV=production` | Starts; `/healthz`, `/`, `/browse-plants`, `/privacy` answer 200; refuses to start without `FLASK_SECRET_KEY` |
+| Mobile app type check (`tsc`) | No errors |
+| Mobile app bundled for Android and iOS | Both bundle |
+| Mobile app run in a browser against the real server | Sign up, log in, add plant, log care, reminder add/done, health record with photo, edit with photo, remove plant, log out, delete account all worked |
+
+### Not verified
+
+- The app has not been run on a real iPhone or Android phone, so the camera,
+  photo picker and notifications are untested on devices.
+- No store build has been made (that needs Expo, Apple and Google accounts).
+- Trefle is still only tested with fake responses (no token here).
+- The Render set-up in `render.yaml` has not been deployed.
