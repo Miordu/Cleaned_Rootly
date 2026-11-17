@@ -35,6 +35,11 @@ MAX_RETRIES = 2
 # Longest we'll wait before a retry, in seconds
 MAX_RETRY_WAIT = 30
 
+# Longest a single call may pause for the rate limit. None = wait as long as it
+# takes (right for the bulk seed scripts). The website sets a few seconds so a
+# page gets "try again shortly" instead of hanging for up to a minute.
+MAX_BLOCKING_WAIT = None
+
 _recent_requests = deque()  # times of the requests sent in the last minute
 _blocked_until = 0.0         # time.time() before which Trefle said we're out of quota
 _lock = threading.Lock()
@@ -46,27 +51,39 @@ def get_api_key():
 
 
 def _wait_for_rate_limit():
-    """Pause until sending one more request keeps us under 60 per minute."""
-    with _lock:
-        # Trefle told us earlier that this minute's quota is used up
-        if _blocked_until > time.time():
-            wait = min(_blocked_until - time.time(), MAX_RETRY_WAIT)
-            logger.info(f"Trefle quota used up, waiting {wait:.1f}s for it to reset")
-            time.sleep(wait)
+    """Pause until sending one more request keeps us under 60 per minute.
 
-        now = time.monotonic()
-        # Forget requests older than one minute
-        while _recent_requests and now - _recent_requests[0] >= WINDOW_SECONDS:
-            _recent_requests.popleft()
+    Returns False without waiting when the wait would be longer than
+    MAX_BLOCKING_WAIT (the website sets this so a page never hangs).
+    """
+    global _blocked_until
+    while True:
+        with _lock:
+            blocked_for = _blocked_until - time.time()
+            if blocked_for > 0:
+                # Trefle told us earlier that this minute's quota is used up
+                wait = min(blocked_for, MAX_RETRY_WAIT)
+                reason = "quota used up"
+            else:
+                now = time.monotonic()
+                # Forget requests older than one minute
+                while _recent_requests and now - _recent_requests[0] >= WINDOW_SECONDS:
+                    _recent_requests.popleft()
+                if len(_recent_requests) < MAX_REQUESTS_PER_MINUTE:
+                    _recent_requests.append(now)
+                    return True
+                wait = WINDOW_SECONDS - (now - _recent_requests[0])
+                reason = "limit reached"
 
-        if len(_recent_requests) >= MAX_REQUESTS_PER_MINUTE:
-            wait = WINDOW_SECONDS - (now - _recent_requests[0])
-            logger.info(f"Trefle limit reached, waiting {wait:.1f}s")
-            time.sleep(wait)
-            now = time.monotonic()
-            _recent_requests.popleft()
-
-        _recent_requests.append(now)
+        if MAX_BLOCKING_WAIT is not None and wait > MAX_BLOCKING_WAIT:
+            logger.warning(f"Trefle {reason}; not waiting {wait:.1f}s")
+            return False
+        logger.info(f"Trefle {reason}, waiting {wait:.1f}s")
+        # Sleep outside the lock so other requests aren't frozen behind this one
+        time.sleep(wait)
+        if reason == "quota used up":
+            with _lock:
+                _blocked_until = 0.0
 
 
 def _note_remaining(response):
@@ -106,11 +123,14 @@ def _get(path, **params):
     params['token'] = api_key
     try:
         for attempt in range(MAX_RETRIES + 1):
-            _wait_for_rate_limit()
+            if not _wait_for_rate_limit():
+                return {"error": "Trefle is busy, try again in a minute"}
             response = requests.get(f"{BASE_URL}{path}", params=params,
                                     timeout=REQUEST_TIMEOUT)
             if response.status_code == 429 and attempt < MAX_RETRIES:
                 wait = _retry_wait(response, attempt)
+                if MAX_BLOCKING_WAIT is not None and wait > MAX_BLOCKING_WAIT:
+                    return {"error": "Trefle is busy, try again in a minute"}
                 logger.warning(f"Trefle said too many requests, retrying in {wait:.0f}s")
                 time.sleep(wait)
                 continue

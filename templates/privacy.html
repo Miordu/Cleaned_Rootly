@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Privacy - Rootly{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="mb-4">Privacy</h1>
+
+            <h2 class="h5">What Rootly stores</h2>
+            <ul>
+                <li>Your username, email address and, if you choose one, your region.</li>
+                <li>Your password, stored only in a scrambled (hashed) form that we cannot read.</li>
+                <li>The plants you add, and their nicknames, locations, notes, care log, reminders and health records.</li>
+                <li>Photos you upload of your plants.</li>
+            </ul>
+
+            <h2 class="h5">What Rootly does with it</h2>
+            <p>It is used only to show you your own plants and care history. We do not sell it,
+               share it with advertisers, or use it to track you. There are no adverts and no
+               analytics trackers.</p>
+
+            <h2 class="h5">Other services</h2>
+            <p>When you search for a plant, the words you search for are sent to the
+               <a href="https://trefle.io">Trefle</a> plant database to find matches. Nothing
+               that identifies you is sent with them.</p>
+
+            <h2 class="h5">Reminders on your phone</h2>
+            <p>The mobile app's reminder notifications are created on your own phone. They are
+               not sent through a notification service.</p>
+
+            <h2 class="h5">Deleting your data</h2>
+            <p>You can delete your account, and everything stored with it, at any time: in the
+               mobile app under Account, or on this website on the
+               <a href="/account">Account page</a>. Deletion is immediate and permanent.</p>
+
+            {% if contact_email %}
+            <h2 class="h5">Contact</h2>
+            <p>Questions about your data: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

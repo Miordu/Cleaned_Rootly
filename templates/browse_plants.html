@@ -1,27 +1,38 @@
 {% extends 'base.html' %}
 {% block title %}Browse Plants - Rootly{% endblock %}
 
+{% macro page_link(number) -%}
+/browse-plants?page={{ number }}{% if plant_filter %}&filter={{ plant_filter }}{% endif %}
+{%- endmacro %}
+
 {% block content %}
 <div class="container py-4">
     <h1 class="mb-4">Browse Plants</h1>
-    
+
     <div class="row mb-4">
         <div class="col-md-6">
             <form method="GET" class="d-flex">
-                <input class="form-control me-2" type="search" name="search" placeholder="Search plants..." aria-label="Search">
+                <input class="form-control me-2" type="search" name="search" value="{{ search }}" placeholder="Search plants..." aria-label="Search">
                 <button class="btn btn-outline-success" type="submit">Search</button>
             </form>
         </div>
         <div class="col-md-6">
             <div class="btn-group float-end" role="group">
-                <button type="button" class="btn btn-outline-success active">All</button>
-                <button type="button" class="btn btn-outline-success">Indoor</button>
-                <button type="button" class="btn btn-outline-success">Outdoor</button>
-                <button type="button" class="btn btn-outline-success">Easy Care</button>
+                <a href="/browse-plants" class="btn btn-outline-success {% if not plant_filter and not search %}active{% endif %}">All</a>
+                <a href="/browse-plants?filter=indoor" class="btn btn-outline-success {% if plant_filter == 'indoor' %}active{% endif %}">Indoor</a>
+                <a href="/browse-plants?filter=outdoor" class="btn btn-outline-success {% if plant_filter == 'outdoor' %}active{% endif %}">Outdoor</a>
+                <a href="/browse-plants?filter=easy" class="btn btn-outline-success {% if plant_filter == 'easy' %}active{% endif %}">Easy Care</a>
             </div>
         </div>
     </div>
-    
+
+    {% if not plants %}
+    <div class="alert alert-info">
+        {% if search %}No plants match "{{ search }}". Try a different name.
+        {% else %}No plants to show here yet.{% endif %}
+    </div>
+    {% endif %}
+
     <div class="row">
         {% for plant in plants %}
         <div class="col-md-4 mb-4">
@@ -34,27 +45,47 @@
                 </div>
                 {% endif %}
                 <div class="card-body">
-                    <h5 class="card-title">{{ plant.common_name }}</h5>
+                    <h5 class="card-title">{{ plant.common_name or plant.scientific_name }}</h5>
                     <p class="card-text text-muted">{{ plant.scientific_name }}</p>
+                    {% if plant.is_api_result is defined and plant.is_api_result %}
+                    {# Not in our database yet: the button copies it in, then shows its page #}
+                    <form method="POST" action="/import-plant">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="scientific_name" value="{{ plant.scientific_name }}">
+                        <input type="hidden" name="api_source" value="trefle">
+                        <input type="hidden" name="external_id" value="{{ plant.external_id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success">View Details</button>
+                    </form>
+                    {% else %}
                     <p class="card-text">
-                        {% if plant.indoor is defined and plant.indoor %}
+                        {% if plant.indoor %}
                         <span class="badge bg-info text-dark me-1">Indoor</span>
                         {% endif %}
-                        {% if plant.outdoor is defined and plant.outdoor %}
+                        {% if plant.outdoor %}
                         <span class="badge bg-success me-1">Outdoor</span>
                         {% endif %}
-                        {% if (plant.poisonous_to_pets is defined and plant.poisonous_to_pets) or (plant.poisonous_to_humans is defined and plant.poisonous_to_humans) %}
+                        {% if plant.poisonous_to_pets or plant.poisonous_to_humans %}
                         <span class="badge bg-danger me-1">Poisonous</span>
-                        {% endif %}
-                        {% if plant.is_api_result is defined and plant.is_api_result %}
-                        <span class="badge bg-secondary me-1">From Trefle</span>
                         {% endif %}
                     </p>
                     <a href="/plant/{{ plant.plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>
+                    {% endif %}
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
+
+    {% if not search and (page > 1 or has_next) %}
+    <nav class="d-flex justify-content-between" aria-label="Pages">
+        {% if page > 1 %}
+        <a class="btn btn-outline-success" href="{{ page_link(page - 1) }}">&larr; Previous</a>
+        {% else %}<span></span>{% endif %}
+        <span class="text-muted align-self-center">Page {{ page }}</span>
+        {% if has_next %}
+        <a class="btn btn-outline-success" href="{{ page_link(page + 1) }}">Next &rarr;</a>
+        {% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
 </div>
 {% endblock %}

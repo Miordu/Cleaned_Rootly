@@ -37,7 +37,13 @@
                 <ul class="navbar-nav ms-auto">
                     {% if session.get('user_id') %}
                     <li class="nav-item">
-                        <a class="nav-link" href="/logout">Logout</a>
+                        <a class="nav-link" href="/account">Account</a>
+                    </li>
+                    <li class="nav-item">
+                        <form method="POST" action="/logout" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="nav-link btn btn-link">Logout</button>
+                        </form>
                     </li>
                     {% else %}
                     <li class="nav-item">
@@ -62,7 +68,7 @@
 
     <footer class="footer bg-light py-3 mt-5">
         <div class="container text-center">
-            <span class="text-muted">© 2025 Rootly. All rights reserved.</span>
+            <span class="text-muted">© 2026 Rootly. All rights reserved. · <a href="/privacy" class="text-muted">Privacy</a></span>
         </div>
     </footer>
 

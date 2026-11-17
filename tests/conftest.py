@@ -36,16 +36,17 @@ if ROOT not in sys.path:
 from server import app as flask_app  # noqa: E402
 from model import db  # noqa: E402
 import crud  # noqa: E402
+import services  # noqa: E402
 
 
 @pytest.fixture
-def app(tmp_path):
+def app():
     """The Flask app with fresh, empty tables for each test."""
     flask_app.config.update(
         TESTING=True,
         WTF_CSRF_ENABLED=False,
-        UPLOAD_FOLDER=str(tmp_path),  # uploads go to a temp folder, not static/
     )
+    services._failed_logins.clear()
     with flask_app.app_context():
         assert str(db.engine.url) == TEST_DB_URI, "tests must use the test database"
         db.drop_all()

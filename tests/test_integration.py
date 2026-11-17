@@ -14,7 +14,7 @@ def test_full_plant_care_workflow(client, app):
 
     # Sign up (this also logs you in)
     response = client.post("/register", data={
-        "username": "q", "email": "q@example.com", "password": "pw-123",
+        "username": "q", "email": "q@example.com", "password": "pw-123456",
         "region_id": region.region_id,
     })
     assert response.headers["Location"].endswith("/dashboard")
@@ -41,8 +41,8 @@ def test_full_plant_care_workflow(client, app):
     assert b"Orbi" in page.data
 
     # Log out, log back in
-    client.get("/logout")
+    client.post("/logout")
     assert client.get("/my-plants").status_code == 302
-    login = client.post("/login", data={"email": "q@example.com", "password": "pw-123"})
+    login = client.post("/login", data={"email": "q@example.com", "password": "pw-123456"})
     assert login.headers["Location"].endswith("/dashboard")
     assert b"Orbi" in client.get("/my-plants").data

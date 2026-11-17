@@ -118,6 +118,7 @@
                             <a href="/plant/{{ plant.plant_id }}" class="btn btn-sm btn-outline-success">View Details</a>
                             {% else %}
                             <form method="POST" action="/import-plant" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="scientific_name" value="{{ plant.scientific_name }}">
                                 <input type="hidden" name="api_source" value="{{ plant.api_source }}">
                                 <input type="hidden" name="external_id" value="{{ plant.plant_id }}">

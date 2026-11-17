@@ -56,6 +56,9 @@ def clock(monkeypatch):
     monkeypatch.setattr(trefle.time, "time", fake.time)
     monkeypatch.setattr(trefle, "_recent_requests", trefle.deque())
     monkeypatch.setattr(trefle, "_blocked_until", 0.0)
+    # Wait as long as needed, the way the bulk seed scripts do. (The website
+    # sets a short limit; test_website_does_not_hang_on_the_limit covers that.)
+    monkeypatch.setattr(trefle, "MAX_BLOCKING_WAIT", None)
     return fake
 
 
@@ -99,6 +102,18 @@ def test_api_down_returns_error_and_hides_key(monkeypatch, with_key, clock, capl
     assert "error" in trefle.get_plant_list()
     assert "fake-token" not in caplog.text
     assert "fake-token" not in trefle.get_plant_list()["error"]
+
+
+def test_website_does_not_hang_on_the_limit(monkeypatch, with_key, clock):
+    # With a short MAX_BLOCKING_WAIT (what server.py sets), the 61st request
+    # gives up straight away with an error instead of freezing the page
+    monkeypatch.setattr(trefle, "MAX_BLOCKING_WAIT", 3)
+    sent = []
+    monkeypatch.setattr(trefle.requests, "get", lambda url, **kw: sent.append(url) or FakeResponse())
+    for _ in range(60):
+        trefle.get_plant_list()
+    assert "error" in trefle.get_plant_list()
+    assert clock.slept == [] and len(sent) == 60
 
 
 def test_stays_under_60_requests_a_minute(monkeypatch, with_key, clock):

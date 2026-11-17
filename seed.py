@@ -1,4 +1,9 @@
-"""Script to create database tables and seed with initial data."""
+"""Create the database tables and add the starter data.
+
+Safe to run again and again: it only adds what is missing. The live site
+runs it every time it starts (see render.yaml), which is also how new tables
+get created after an update.
+"""
 
 import os
 from dotenv import load_dotenv
@@ -25,15 +30,25 @@ def add_regions():
         {"name": "Pacific Northwest", "climate_zone": "7-9", "avg_temperature": 55.0, "humidity_level": "High"},
     ]
     
+    added = 0
     for region_data in regions:
-        region = Region(**region_data)
-        db.session.add(region)
-    
+        if not Region.query.filter_by(name=region_data["name"]).first():
+            db.session.add(Region(**region_data))
+            added += 1
+
     db.session.commit()
-    print(f"Added {len(regions)} regions!")
+    print(f"Added {added} regions!")
 
 def add_admin_user():
-    """Add admin user."""
+    """Add a sample admin user for local testing.
+
+    Skipped on the live site (APP_ENV=production): the password is public.
+    """
+    if os.environ.get("APP_ENV", "").lower() == "production":
+        print("Live site: sample admin user not added.")
+        return
+    if User.query.filter_by(email="admin@rootly.com").first():
+        return
     admin = User(
         username="admin",
         email="admin@rootly.com",
@@ -83,18 +98,20 @@ def add_sample_plants():
         }
     ]
     
+    added = 0
     for plant_data in plants:
-        plant = Plant(**plant_data)
-        db.session.add(plant)
-    
+        if not Plant.query.filter_by(scientific_name=plant_data["scientific_name"]).first():
+            db.session.add(Plant(**plant_data))
+            added += 1
+
     db.session.commit()
-    print(f"Added {len(plants)} sample plants!")
+    print(f"Added {added} sample plants!")
 
 def add_plant_care_details():
     """Add care details for sample plants."""
     care_details = [
         {
-            "plant_id": 1,  # Monstera
+            "scientific_name": "Monstera deliciosa",
             "watering_frequency": "Weekly",
             "watering_interval_days": 7,
             "sunlight_requirements": ["Bright indirect light"],
@@ -104,7 +121,7 @@ def add_plant_care_details():
             "difficulty_level": "Easy"
         },
         {
-            "plant_id": 2,  # Fiddle Leaf Fig
+            "scientific_name": "Ficus lyrata",
             "watering_frequency": "Weekly",
             "watering_interval_days": 7,
             "sunlight_requirements": ["Bright indirect light", "Direct morning sunlight"],
@@ -114,7 +131,7 @@ def add_plant_care_details():
             "difficulty_level": "Moderate"
         },
         {
-            "plant_id": 3,  # Snake Plant
+            "scientific_name": "Sansevieria trifasciata",
             "watering_frequency": "Monthly",
             "watering_interval_days": 30,
             "sunlight_requirements": ["Low light", "Bright indirect light"],
@@ -125,12 +142,15 @@ def add_plant_care_details():
         }
     ]
     
+    added = 0
     for care_data in care_details:
-        care = PlantCareDetails(**care_data)
-        db.session.add(care)
-    
+        plant = Plant.query.filter_by(scientific_name=care_data.pop("scientific_name")).first()
+        if plant and not plant.care_details:
+            db.session.add(PlantCareDetails(plant_id=plant.plant_id, **care_data))
+            added += 1
+
     db.session.commit()
-    print(f"Added care details for {len(care_details)} plants!")
+    print(f"Added care details for {added} plants!")
 
 if __name__ == "__main__":
     # Create an application context before working with the database

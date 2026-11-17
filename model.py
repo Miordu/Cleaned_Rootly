@@ -273,11 +273,68 @@ class RelatedPlant(db.Model):
         return f"<RelatedPlant related_id={self.related_id} type={self.relationship_type}>"
 
 
+class Photo(db.Model):
+    """A photo someone uploaded, stored in the database.
+
+    Photos live in the database (not in a folder on the server) so they
+    survive when the app is moved or redeployed on a hosting service.
+    """
+
+    __tablename__ = "photos"
+
+    photo_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # Random string used in the photo's web address, so addresses can't be guessed
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    content_type = db.Column(db.String(50), nullable=False, default='image/jpeg')
+    data = db.Column(db.LargeBinary, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Photo photo_id={self.photo_id} user_id={self.user_id}>"
+
+
+class ApiToken(db.Model):
+    """A login from the mobile app.
+
+    The app gets a long random token when someone logs in. Only a hash of it
+    is stored here, so a copy of the database can't be used to log in.
+    """
+
+    __tablename__ = "api_tokens"
+
+    token_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User')
+
+    def __repr__(self):
+        return f"<ApiToken token_id={self.token_id} user_id={self.user_id}>"
+
+
+def database_uri_from_env():
+    """Work out the database address from the environment.
+
+    DATABASE_URI is what Rootly has always used. Hosting services such as
+    Render set DATABASE_URL instead, sometimes starting with "postgres://",
+    which SQLAlchemy no longer accepts, so that is corrected here.
+    """
+    uri = (os.environ.get("DATABASE_URI") or os.environ.get("DATABASE_URL")
+           or "postgresql:///rootly")
+    if uri.startswith("postgres://"):
+        uri = "postgresql://" + uri[len("postgres://"):]
+    return uri
+
+
 def connect_to_db(flask_app, db_uri=None, echo=False):
     """Connect the database to our Flask app.
 
     The database URL comes from the db_uri argument, then the DATABASE_URI
-    environment variable, then the local default postgresql:///rootly.
+    (or DATABASE_URL) environment variable, then the local default
+    postgresql:///rootly.
 
     Safe to call more than once: server.py already connects when it is
     imported, so scripts like seed.py that call this again won't crash.
@@ -287,7 +344,7 @@ def connect_to_db(flask_app, db_uri=None, echo=False):
         return
 
     if db_uri is None:
-        db_uri = os.environ.get("DATABASE_URI", "postgresql:///rootly")
+        db_uri = database_uri_from_env()
 
     # Configure to use our database
     flask_app.config["SQLALCHEMY_DATABASE_URI"] = db_uri

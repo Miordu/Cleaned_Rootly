@@ -13,6 +13,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="nickname" class="form-label">Nickname</label>
                             <input type="text" class="form-control" id="nickname" name="nickname" value="{{ user_plant.nickname or '' }}">
@@ -50,6 +51,13 @@
                             <a href="/user-plant/{{ user_plant.user_plant_id }}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-success">Save Changes</button>
                         </div>
+                    </form>
+
+                    <hr>
+                    <form method="POST" action="/delete-user-plant/{{ user_plant.user_plant_id }}"
+                          onsubmit="return confirm('Remove this plant and its care log, reminders and health records? This cannot be undone.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Remove from my collection</button>
                     </form>
                 </div>
             </div>

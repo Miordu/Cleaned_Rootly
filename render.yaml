@@ -1,0 +1,32 @@
+# Blueprint for hosting Rootly on Render (https://render.com).
+# In Render choose New > Blueprint, pick this repository, and it creates the
+# web service and the database described here.
+services:
+  - type: web
+    name: rootly
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # seed.py creates any missing tables and starter data, then the app starts
+    startCommand: python seed.py && gunicorn server:app --workers 2 --threads 4 --timeout 60
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_ENV
+        value: production
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rootly-db
+          property: connectionString
+      # Render asks you to type these in when you create the Blueprint
+      - key: TREFLE_API_KEY
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+
+databases:
+  - name: rootly-db
+    plan: free
