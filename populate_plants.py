@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Enhanced seed script to populate the database with 100+ plants from various APIs
+Seed script that fills the database with popular houseplants plus plants from
+the Trefle API. Needs TREFLE_API_KEY in .env for the Trefle part.
+Uses about 2 Trefle requests, well under the 60-per-minute limit.
 """
 
 import os
@@ -17,7 +19,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from server import app
 from model import db, Plant, PlantCareDetails, Region
-from api.perenual import get_plant_list, get_plant_details, map_plant_to_model
 import crud
 
 # Set up logging
@@ -25,7 +26,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from api.quantitative_plant import get_plant_list as get_trefle_plants
-from api.plant_image_apis import PlantImageFetcher
 
 
 def create_regions():
@@ -47,55 +47,6 @@ def create_regions():
     
     db.session.commit()
     logger.info("Regions created successfully")
-
-def populate_plants_from_image_apis():
-    """Populate database with plants from image APIs."""
-    logger.info("Starting to populate plants from image APIs...")
-    
-    plants_added = 0
-    target_plants = 25  # set based on initial targets
-
-    # Initialize PlantImageFetcher
-    image_fetcher = PlantImageFetcher(
-        trefle_key=os.getenv('TREFLE_API_KEY'),
-        perenual_key=os.getenv('PERENUAL_API_KEY')
-    )
-    sample_queries = ['fern', 'rose', 'oak', 'cactus', 'ivy']  # Sample searches
-    
-    for query in sample_queries:
-        try:
-            image_url = image_fetcher.get_best_image(query)
-            if not image_url:
-                logger.warning(f"No image found for {query}")
-                continue
-            
-            existing_plant = Plant.query.filter_by(common_name=query).first()
-            if existing_plant:
-                continue
-            
-            plant = Plant(
-                scientific_name='N/A',
-                common_name=query,
-                image_url=image_url,
-                data_sources=['image_api'],
-                last_updated=datetime.utcnow()
-            )
-            db.session.add(plant)
-            plants_added += 1
-            
-            if plants_added % 5 == 0:
-                logger.info(f"Added {plants_added} plants from image APIs so far...")
-            
-            if plants_added >= target_plants:
-                break
-                
-        except Exception as e:
-            logger.error(f"Error processing plant {query} from image APIs: {e}")
-            continue
-    
-    db.session.commit()
-    logger.info(f"Successfully added {plants_added} plants from image APIs")
-    return plants_added
 
 def populate_plants_from_trefle():
     """Populate database with plants from Trefle API."""
@@ -127,7 +78,8 @@ def populate_plants_from_trefle():
                 # Create new plant record
                 plant = Plant(
                     scientific_name=plant_data.get('scientific_name', f"Unknown_{plant_data.get('id', 'N/A')}"),
-                    common_name=plant_data.get('common_name', 'Unknown Plant'),
+                    common_name=plant_data.get('common_name') or 'Unknown Plant',
+                    image_url=plant_data.get('image_url'),
                     description=plant_data.get('family_common_name', '') or f"A plant in the {plant_data.get('family', 'plant')} family.",
                     data_sources=['trefle'],
                     last_updated=datetime.utcnow()
@@ -156,94 +108,6 @@ def populate_plants_from_trefle():
     
     db.session.commit()
     logger.info(f"Successfully added {plants_added} Trefle plants")
-    return plants_added
-
-def populate_plants_from_perenual():
-    """Populate database with plants from Perenual API."""
-    logger.info("Starting to populate plants from Perenual API...")
-    
-    plants_added = 0
-    target_plants = 50  # Divide the target among the APIs
-    
-    # Fetch multiple pages to get enough plants
-    for page in range(1, 6):  # Pages 1-5 (should give us 100+ plants)
-        logger.info(f"Fetching page {page}...")
-        
-        plant_list = get_plant_list(page=page, size=20)
-        
-        if not plant_list or 'data' not in plant_list:
-            logger.warning(f"No data returned for page {page}")
-            continue
-        
-        for plant_data in plant_list['data']:
-            try:
-                # Extract scientific name - handle both string and array formats
-                scientific_name = plant_data.get('scientific_name', f"Unknown_{plant_data.get('id', 'N/A')}")
-                if isinstance(scientific_name, list):
-                    scientific_name = scientific_name[0] if scientific_name else f"Unknown_{plant_data.get('id', 'N/A')}"
-                
-                # Check if plant already exists
-                existing_plant = Plant.query.filter_by(
-                    scientific_name=scientific_name
-                ).first()
-                
-                if existing_plant:
-                    continue
-                
-                # Create new plant record
-                plant = Plant(
-                    scientific_name=scientific_name,
-                    common_name=plant_data.get('common_name', 'Unknown Plant'),
-                    description=plant_data.get('description', 'A beautiful plant from our database.'),
-                    image_url=plant_data.get('default_image', {}).get('original_url') if plant_data.get('default_image') else None,
-                    indoor=plant_data.get('indoor', False),
-                    outdoor=not plant_data.get('indoor', True),
-                    tropical=plant_data.get('tropical', False),
-                    poisonous_to_humans=plant_data.get('poisonous_to_humans', False),
-                    poisonous_to_pets=plant_data.get('poisonous_to_pets', False),
-                    data_sources=['perenual'],
-                    last_updated=datetime.utcnow()
-                )
-                
-                db.session.add(plant)
-                db.session.flush()  # Get the plant ID
-                
-                # Try to get detailed care information
-                try:
-                    if plant_data.get('id'):
-                        details = get_plant_details(plant_data['id'])
-                        if details and isinstance(details, dict):
-                            # Create care details
-                            care_details = PlantCareDetails(
-                                plant_id=plant.plant_id,
-                                watering_frequency=details.get('watering', 'Weekly'),
-                                sunlight_requirements=details.get('sunlight', ['Medium light']),
-                                soil_preferences=details.get('soil', 'Well-draining potting mix'),
-                                temperature_range='65-80°F',
-                                difficulty_level=details.get('care_level', 'Moderate'),
-                                propagation_methods=['Cuttings', 'Seeds']
-                            )
-                            db.session.add(care_details)
-                except Exception as e:
-                    logger.warning(f"Could not fetch care details for {plant.common_name}: {e}")
-                
-                plants_added += 1
-                
-                if plants_added % 10 == 0:
-                    logger.info(f"Added {plants_added} plants so far...")
-                
-                if plants_added >= target_plants:
-                    break
-                    
-            except Exception as e:
-                logger.error(f"Error processing plant {plant_data.get('common_name', 'Unknown')}: {e}")
-                continue
-        
-        if plants_added >= target_plants:
-            break
-    
-    db.session.commit()
-    logger.info(f"Successfully added {plants_added} plants from Perenual API")
     return plants_added
 
 def add_popular_houseplants():
@@ -377,14 +241,9 @@ def main():
         # Add popular houseplants first
         houseplants_added = add_popular_houseplants()
         
-        # Add plants from Image APIs
-        image_plants_added = populate_plants_from_image_apis()
-        
         # Add plants from Trefle API
         trefle_plants_added = populate_plants_from_trefle()
-        
-        # Add plants from Perenual API
-        perenual_plants_added = populate_plants_from_perenual()
+
         
         # Final count
         final_count = Plant.query.count()
@@ -393,15 +252,11 @@ def main():
         logger.info(f"Population complete!")
         logger.info(f"Plants added this session: {total_added}")
         logger.info(f"  - Popular houseplants: {houseplants_added}")
-        logger.info(f"  - From Image APIs: {image_plants_added}")
         logger.info(f"  - From Trefle API: {trefle_plants_added}")
-        logger.info(f"  - From Perenual API: {perenual_plants_added}")
         logger.info(f"Total plants in database: {final_count}")
         
-        if final_count >= 100:
-            logger.info("✅ Success! Database now has 100+ plants")
-        else:
-            logger.warning(f"⚠️ Only {final_count} plants in database. May need more API calls.")
+        if trefle_plants_added == 0:
+            logger.warning("No Trefle plants added. Is TREFLE_API_KEY set in .env?")
 
 if __name__ == "__main__":
     main()

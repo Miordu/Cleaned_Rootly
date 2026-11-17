@@ -186,34 +186,6 @@ class FlaskAppTester:
             logger.error(f"❌ Dashboard test failed: {e}")
             return False
     
-    def test_plant_identification(self):
-        """Test plant identification feature."""
-        logger.info("Testing plant identification...")
-        try:
-            # Create test image if not exists
-            if not os.path.exists(TEST_IMAGE_PATH):
-                if not self.create_test_image():
-                    return False
-            
-            # Upload image for identification
-            with open(TEST_IMAGE_PATH, 'rb') as f:
-                files = {'plant_image': f}
-                response = self.session.post(f"{BASE_URL}/identify", files=files)
-            
-            if response.status_code == 200:
-                if "identification_results" in response.text or "plant" in response.text.lower():
-                    logger.info("✅ Plant identification successful")
-                    return True
-                else:
-                    logger.warning("⚠️ Plant identification returned unexpected content")
-                    return False
-            else:
-                logger.error(f"❌ Plant identification failed: {response.status_code}")
-                return False
-        except Exception as e:
-            logger.error(f"❌ Plant identification test failed: {e}")
-            return False
-    
     def test_browse_plants(self):
         """Test browse plants feature."""
         logger.info("Testing browse plants...")
@@ -315,7 +287,6 @@ class FlaskAppTester:
             ("Browse Plants", self.test_browse_plants),
             ("My Plants", self.test_my_plants),
             ("Add Plant", self.test_add_plant),
-            ("Plant Identification", self.test_plant_identification),
             ("User Logout", self.test_logout),
         ]
         

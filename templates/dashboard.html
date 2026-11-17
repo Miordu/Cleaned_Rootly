@@ -18,15 +18,15 @@
             <div class="card stat-card h-100">
                 <div class="card-body">
                     <h5 class="card-title">Upcoming Reminders</h5>
-                    <p class="card-text display-4">0</p>
+                    <p class="card-text display-4">{{ upcoming_reminders }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card stat-card h-100">
                 <div class="card-body">
-                    <h5 class="card-title">Plants Identified</h5>
-                    <p class="card-text display-4">0</p>
+                    <h5 class="card-title">Care Logged (30 days)</h5>
+                    <p class="card-text display-4">{{ recent_care_events }}</p>
                 </div>
             </div>
         </div>
@@ -40,7 +40,7 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="/identify" class="btn btn-outline-success">Identify a Plant</a>
+                        <a href="/search-plants" class="btn btn-outline-success">Search Plants</a>
                         <a href="/add-plant" class="btn btn-outline-success">Add to Collection</a>
                         <a href="/browse-plants" class="btn btn-outline-success">Browse Plants</a>
                     </div>

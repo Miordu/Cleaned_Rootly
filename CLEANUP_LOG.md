@@ -108,10 +108,9 @@ each page. All returned the expected status:
 
 ## 6. Not verified
 
-- The real plant APIs (Plant.id, Perenual, Trefle) weren't reachable from the
-  test machine and no keys were available, so the API code was only tested
-  with fake responses. Run `RUN_LIVE_API_TESTS=1 pytest -k live` with your
-  keys to check them.
+- The real Trefle API wasn't reachable from the test machine and no token was
+  available, so the Trefle code was only tested with fake responses. Run
+  `RUN_LIVE_API_TESTS=1 pytest -k live` with your token to check it.
 - `populate_plants.py` and `enhanced_seed_plants.py` need API keys and weren't run.
 - The manual scripts in the root (`test_flask_app.py`, `test_browse_plants.py`,
   `test_fixes.py`, `test_plant_identification.py`, `check_*.py`,
@@ -122,11 +121,70 @@ each page. All returned the expected status:
 1. **Forms have no CSRF protection.** Flask-WTF is installed but not used, so
    another website could submit forms as a logged-in user. Adding
    `CSRFProtect(app)` and a token to each form would fix it.
-2. `trefle_api.py` and `plant_service.py` aren't used anywhere, and
-   `trefle_api.py` reads `TREFLE_API_TOKEN` while the rest of the app uses
-   `TREFLE_API_KEY`. Delete them or wire them in.
+2. ~~`trefle_api.py` and `plant_service.py` aren't used anywhere.~~ Removed
+   in part 8.
 3. Flask-Login is installed but unused (login is done by hand with the session).
 4. The plant pages show Lorem ipsum instead of the plant's real description
    (latest commit on `main`). Switch back when you're ready.
 5. Move the manual scripts in the root into a `scripts/` folder.
 6. `datetime.utcnow()` is deprecated from Python 3.12 on; it still works.
+
+## 8. Nov 17: Trefle is now the only plant API
+
+Plant.id, Perenual and PlantNet keys now cost money, so they were removed.
+Trefle (free token, 60 requests per minute) is the only external plant API.
+
+### What went away
+
+| Feature | Was powered by | Now |
+| --- | --- | --- |
+| Identify a plant from a photo (`/identify`) | Plant.id | Removed. Old links go to plant search with a message. Nav, dashboard, Add Plant and My Plants buttons now say "Search Plants" |
+| Automatic diagnosis from a health photo | Plant.id health assessment | Removed. You still record symptoms, diagnosis, treatment and a photo yourself |
+| Browse page's plant list and search results | Perenual | Now come from Trefle |
+| Plant photos in the bulk seed scripts | Perenual | Trefle's `image_url` |
+| PlantNet | Only a key in `.env.example`; never actually used | Removed |
+
+Kept: the `identification_history` table and its crud functions, so no
+database change is needed and past records stay.
+
+### Changes
+
+| Change | Detail |
+| --- | --- |
+| Deleted `api/perenual.py`, `api/plant_id.py`, `api/plant_health.py`, `api/plant_image_apis.py` | Paid APIs |
+| Deleted `templates/identify.html`, `templates/identification_results.html` | Photo identification pages |
+| Deleted `trefle_api.py`, `plant_service.py` | Unused second Trefle client that read `TREFLE_API_TOKEN`. Now there's one client and one name: `TREFLE_API_KEY` |
+| Deleted `test_plant_identification.py`, `test_browse_plants.py` | Manual scripts for the removed APIs |
+| Rewrote `api/quantitative_plant.py` | Every request goes through one function that keeps to 60 requests a minute, waits and retries (up to twice) on a 429 using Trefle's `Retry-After` header, respects Trefle's `RateLimit-Remaining`/`RateLimit-Reset` headers, reads the token from `.env` at call time, and never writes the token into logs or error messages |
+| Fixed Trefle field names | Temperature and height were read from the wrong fields (`temperature_minimum` instead of Trefle's `minimum_temperature`, bloom months from the wrong section), so imported care details came back empty. Checked against Trefle's published field reference. Light now uses Trefle's 1 to 9 scale |
+| Fewer Trefle requests | Importing a plant used to fetch its details twice; now once |
+| `server.py` | `/browse-plants` uses Trefle and still falls back to the database; health assessments save the photo without calling an API; dashboard's "Upcoming Reminders" and "Plants Identified" were hard-coded to 0, now real counts ("Plants Identified" became "Care Logged (30 days)") |
+| `data_merger.py` | Dropped the Perenual parameter; uses Trefle's common name and photo when importing |
+| `populate_plants.py`, `enhanced_seed_plants.py` | Trefle only; stop cleanly with a clear message when there's no token |
+| `.env.example`, `README.md` | Only `TREFLE_API_KEY` left; README explains the 60-per-minute handling |
+
+### Tests
+
+New tests in `tests/test_apis.py` use a fake clock, so they check the waiting
+without actually waiting:
+
+- 60 requests in a row go straight through; the 61st waits until the first is
+  a minute old
+- one request a second for two minutes never waits
+- a 429 with `Retry-After: 7` waits 7 seconds and succeeds on the retry
+- repeated 429s wait 2s then 4s and give up with an error after 3 tries
+- a huge `Retry-After` is capped at 30 seconds
+- `RateLimit-Remaining: 0` makes the next request wait for the reset
+- no token: no request is sent
+- the token never shows up in logs or errors
+
+Route tests check that `/identify` redirects to search, no page links to it,
+browse shows Trefle results without duplicating plants already in the
+database, importing uses one Trefle request, health photos save, and the
+dashboard counts are real.
+
+| Run | Result |
+| --- | --- |
+| Full suite after the change | 73 passed, 1 skipped (the optional live Trefle check) |
+| Manual run of the app, logged in | `/`, `/browse-plants`, `/browse-plants?search=fig`, `/dashboard`, `/my-plants`, `/add-plant`, `/search-plants`, `/search-plants?query=fig`, `/plant/1` all 200; `/identify` redirects to search |
+| `populate_plants.py` and `enhanced_seed_plants.py` with no token | Both stop cleanly and say the token is missing |

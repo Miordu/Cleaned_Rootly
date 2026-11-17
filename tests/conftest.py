@@ -25,9 +25,8 @@ if "test" not in TEST_DB_URI.rsplit("/", 1)[-1]:
     )
 
 os.environ["DATABASE_URI"] = TEST_DB_URI
-# Never call the real plant APIs from tests (tests that need them use fakes)
-for key in ("PLANT_ID_API_KEY", "TREFLE_API_KEY", "PERENUAL_API_KEY", "PLANTNET_API_KEY"):
-    os.environ[key] = ""
+# Never call the real Trefle API from tests (tests that need it use fakes)
+os.environ["TREFLE_API_KEY"] = ""
 
 # Make the project root importable (server.py, model.py, crud.py live there)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

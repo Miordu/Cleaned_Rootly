@@ -2,7 +2,7 @@
 
 import time
 
-import api.perenual
+import api.quantitative_plant
 import crud
 
 
@@ -17,7 +17,7 @@ def test_search_is_fast(app):
 
 def test_browse_page_is_fast(client, monkeypatch):
     # The old test asked for /plants, which doesn't exist; the page is /browse-plants
-    monkeypatch.setattr(api.perenual, "get_plant_list", lambda page=1, **kw: {"data": []})
+    monkeypatch.setattr(api.quantitative_plant, "get_plant_list", lambda page=1, **kw: {"data": []})
     for i in range(20):
         crud.create_plant(scientific_name=f"Plant {i}")
     start = time.perf_counter()

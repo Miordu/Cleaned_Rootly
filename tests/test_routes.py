@@ -1,7 +1,7 @@
 """Tests for the pages and forms in server.py.
 
-The plant APIs are replaced with small fakes (monkeypatch), so these tests
-never call the internet and don't need API keys.
+The Trefle API is replaced with small fakes (monkeypatch), so these tests
+never call the internet and don't need an API key.
 """
 
 import io
@@ -10,17 +10,15 @@ from datetime import date, timedelta
 import pytest
 
 import crud
-import api.perenual
-import api.quantitative_plant
+import api.quantitative_plant as trefle
 from model import CareEvent, HealthAssessment, Reminder, UserPlant, db
 
 
 @pytest.fixture(autouse=True)
 def no_real_apis(monkeypatch):
-    """Make the plant APIs return nothing unless a test says otherwise."""
-    monkeypatch.setattr(api.perenual, "get_plant_list", lambda page=1, **kw: {"data": []})
-    monkeypatch.setattr(api.perenual, "search_plants", lambda q: {"data": []})
-    monkeypatch.setattr(api.quantitative_plant, "search_plants", lambda q: {"data": []})
+    """Make Trefle return nothing unless a test says otherwise."""
+    monkeypatch.setattr(trefle, "get_plant_list", lambda page=1, **kw: {"data": []})
+    monkeypatch.setattr(trefle, "search_plants", lambda q, **kw: {"data": []})
 
 
 @pytest.fixture
@@ -94,7 +92,7 @@ def test_logout_clears_session(logged_in_client):
 
 
 @pytest.mark.parametrize("path", [
-    "/dashboard", "/my-plants", "/add-plant", "/identify", "/search-plants",
+    "/dashboard", "/my-plants", "/add-plant", "/search-plants",
 ])
 def test_pages_that_need_login_redirect(client, path):
     response = client.get(path)
@@ -255,14 +253,32 @@ def test_browse_plants_bad_page_number(client, page):
     assert client.get(f"/browse-plants?page={page}").status_code == 200
 
 
-def test_browse_plants_shows_api_results(client, monkeypatch):
-    monkeypatch.setattr(api.perenual, "get_plant_list", lambda page=1, **kw: {"data": [
-        {"id": 1, "common_name": "European Silver Fir",
-         "scientific_name": ["Abies alba"], "type": "tree", "default_image": None},
-    ]})
-    response = client.get("/browse-plants")
+def test_browse_plants_shows_trefle_results(client, monkeypatch):
+    seen = {}
+
+    def fake_list(page=1, **kw):
+        seen["page"] = page
+        return {"data": [{"id": 1, "common_name": "European silver fir",
+                          "scientific_name": "Abies alba", "family": "Pinaceae",
+                          "image_url": None}]}
+
+    monkeypatch.setattr(trefle, "get_plant_list", fake_list)
+    response = client.get("/browse-plants?page=3")
     assert response.status_code == 200
-    assert b"European Silver Fir" in response.data
+    assert b"European silver fir" in response.data
+    assert seen["page"] == 3
+
+
+def test_browse_plants_search_adds_trefle_results(client, plant, monkeypatch):
+    monkeypatch.setattr(trefle, "search_plants", lambda q, **kw: {"data": [
+        {"id": 2, "common_name": "Monkey mask", "scientific_name": "Monstera adansonii"},
+        # same plant as the one already in our database: shouldn't show twice
+        {"id": 3, "common_name": "Swiss cheese", "scientific_name": "Monstera deliciosa"},
+    ]})
+    response = client.get("/browse-plants?search=monstera")
+    assert response.data.count(b"Monstera deliciosa") >= 1
+    assert b"Monstera adansonii" in response.data
+    assert b"Swiss cheese<" not in response.data
 
 
 def test_browse_plants_search(client, plant):
@@ -272,7 +288,7 @@ def test_browse_plants_search(client, plant):
 
 
 def test_search_plants(logged_in_client, plant, monkeypatch):
-    monkeypatch.setattr(api.quantitative_plant, "search_plants", lambda q: {"data": [
+    monkeypatch.setattr(trefle, "search_plants", lambda q, **kw: {"data": [
         {"id": 77, "scientific_name": "Monstera adansonii", "common_name": "Monkey mask",
          "image_url": None},
     ]})
@@ -289,16 +305,18 @@ def test_import_existing_plant_redirects_to_it(logged_in_client, plant):
 
 
 def test_import_plant_from_trefle(logged_in_client, monkeypatch):
-    monkeypatch.setattr(api.quantitative_plant, "get_plant_details", lambda pid: {"data": {
+    calls = []
+    monkeypatch.setattr(trefle, "get_plant_details", lambda pid: calls.append(pid) or {"data": {
         "scientific_name": "Ficus lyrata", "common_name": "Fiddle-leaf fig", "family": "Moraceae",
     }})
-    monkeypatch.setattr(api.quantitative_plant, "get_growth_data", lambda pid: {"error": "none"})
     response = logged_in_client.post("/import-plant", data={
         "scientific_name": "Ficus lyrata", "api_source": "trefle", "external_id": "5",
     })
     imported = crud.get_plant_by_scientific_name("Ficus lyrata")
     assert imported is not None
     assert response.headers["Location"].endswith(f"/plant/{imported.plant_id}")
+    # Details are fetched once and reused for the growth data (saves a request)
+    assert calls == ["5"]
 
 
 def test_import_plant_without_source_uses_data_merger(logged_in_client):
@@ -308,38 +326,44 @@ def test_import_plant_without_source_uses_data_merger(logged_in_client):
     assert response.headers["Location"].endswith(f"/plant/{imported.plant_id}")
 
 
-def test_identify_page_and_api_error(logged_in_client, monkeypatch):
-    import api.plant_id
-    assert logged_in_client.get("/identify").status_code == 200
-    monkeypatch.setattr(api.plant_id, "identify_plant", lambda path, **kw: {"error": "no key"})
-    response = logged_in_client.post(
-        "/identify",
-        data={"plant_image": (io.BytesIO(b"img"), "rose.jpg")},
-        content_type="multipart/form-data",
-    )
+def test_old_identify_link_goes_to_search(logged_in_client):
+    # Photo identification was removed with the paid Plant.id API
+    response = logged_in_client.get("/identify")
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/identify")
+    assert response.headers["Location"].endswith("/search-plants")
 
 
-def test_identify_success_creates_plant(logged_in_client, monkeypatch):
-    import api.plant_id
-    monkeypatch.setattr(api.plant_id, "identify_plant", lambda path, **kw: {"ok": True})
-    monkeypatch.setattr(api.plant_id, "map_identification_result", lambda result, **kw: {
-        "scientific_name": "Rosa rubiginosa", "confidence_score": 0.93,
-    })
-    response = logged_in_client.post(
-        "/identify",
-        data={"plant_image": (io.BytesIO(b"img"), "rose.jpg")},
+def test_health_assessment_saves_photo(logged_in_client, user_plant):
+    logged_in_client.post(
+        "/add-health-assessment",
+        data={"user_plant_id": user_plant.user_plant_id, "diagnosis": "Root rot",
+              "image": (io.BytesIO(b"img"), "sick.jpg")},
         content_type="multipart/form-data",
     )
-    assert response.status_code == 200
-    assert b"Rosa rubiginosa" in response.data
+    assessment = HealthAssessment.query.one()
+    assert assessment.diagnosis == "Root rot"
+    assert assessment.image_url.endswith("_sick.jpg")
+
+
+def test_dashboard_counts(logged_in_client, user_plant):
+    crud.create_care_event(user_plant.user_plant_id, "Watering")
+    crud.create_reminder(user_plant.user_plant_id, "Watering", "Weekly",
+                         next_reminder_date=date.today() + timedelta(days=1))
+    page = logged_in_client.get("/dashboard").data.decode()
+    # Both cards used to show a hard-coded 0
+    assert page.count('display-4">1</p>') == 3
+
+
+def test_no_links_to_removed_identify_page(logged_in_client, user_plant):
+    for path in ("/", "/dashboard", "/my-plants", "/add-plant"):
+        assert b'href="/identify"' not in logged_in_client.get(path).data, path
 
 
 def test_uploads_over_16mb_are_rejected(logged_in_client):
     big = io.BytesIO(b"0" * (16 * 1024 * 1024 + 1))
     response = logged_in_client.post(
-        "/identify", data={"plant_image": (big, "huge.jpg")},
+        "/add-health-assessment",
+        data={"user_plant_id": "1", "image": (big, "huge.jpg")},
         content_type="multipart/form-data",
     )
     assert response.status_code == 413
