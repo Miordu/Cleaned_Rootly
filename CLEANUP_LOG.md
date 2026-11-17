@@ -111,10 +111,10 @@ each page. All returned the expected status:
 - The real Trefle API wasn't reachable from the test machine and no token was
   available, so the Trefle code was only tested with fake responses. Run
   `RUN_LIVE_API_TESTS=1 pytest -k live` with your token to check it.
-- `populate_plants.py` and `enhanced_seed_plants.py` need API keys and weren't run.
-- The manual scripts in the root (`test_flask_app.py`, `test_browse_plants.py`,
-  `test_fixes.py`, `test_plant_identification.py`, `check_*.py`,
-  `debug_flask.py`) weren't changed or run.
+- `populate_plants.py` and `enhanced_seed_plants.py` were only run without a
+  token (they stop cleanly); they haven't added real plants from Trefle yet.
+- The manual scripts in the root (`test_flask_app.py`, `test_fixes.py`,
+  `check_*.py`, `debug_flask.py`) weren't run.
 
 ## 7. Suggested next steps (not done)
 
