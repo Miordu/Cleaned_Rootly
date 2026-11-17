@@ -7,14 +7,14 @@ import crud
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def merge_plant_data(scientific_name, perenual_id=None, trefle_id=None):
+def merge_plant_data(scientific_name, trefle_id=None):
     """
     Merge plant data from multiple API sources.
-    Currently using mock data since Perenual API is disabled.
+    Starts from placeholder data and fills in what Trefle knows when a
+    trefle_id is given.
     
     Args:
         scientific_name: Scientific name of the plant
-        perenual_id: ID of the plant in Perenual API (optional)
         trefle_id: ID of the plant in Trefle API (optional)
     
     Returns:
@@ -43,17 +43,22 @@ def merge_plant_data(scientific_name, perenual_id=None, trefle_id=None):
     
     # Add Trefle data if ID is provided
     if trefle_id:
-        from api.quantitative_plant import get_trefle_plant_details, get_growth_data, map_growth_data_to_model
+        from api.quantitative_plant import get_plant_details as get_trefle_plant_details, get_growth_data, map_growth_data_to_model
         
         logger.info(f"Fetching Trefle data for ID: {trefle_id}")
         trefle_plant_data = get_trefle_plant_details(trefle_id)
         
         if 'error' not in trefle_plant_data and 'data' in trefle_plant_data:
             # Update merged data with Trefle data
+            trefle_info = trefle_plant_data['data']
             merged_plant_data['data_sources'].append('trefle')
+            if trefle_info.get('common_name'):
+                merged_plant_data['common_name'] = trefle_info['common_name']
+            if trefle_info.get('image_url'):
+                merged_plant_data['image_url'] = trefle_info['image_url']
             
-            # Get and map growth data
-            growth_data = get_growth_data(trefle_id)
+            # Get and map growth data (reusing the details we already have)
+            growth_data = get_growth_data(trefle_id, plant_details=trefle_plant_data)
             if 'error' not in growth_data:
                 care_data = map_growth_data_to_model(growth_data)
                 
@@ -64,13 +69,12 @@ def merge_plant_data(scientific_name, perenual_id=None, trefle_id=None):
     
     return merged_plant_data, merged_care_data
 
-def find_or_create_plant(scientific_name, perenual_id=None, trefle_id=None):
+def find_or_create_plant(scientific_name, trefle_id=None):
     """
     Find a plant by scientific name or create it by merging data from APIs.
     
     Args:
         scientific_name: Scientific name of the plant
-        perenual_id: ID of the plant in Perenual API (optional)
         trefle_id: ID of the plant in Trefle API (optional)
     
     Returns:
@@ -84,7 +88,7 @@ def find_or_create_plant(scientific_name, perenual_id=None, trefle_id=None):
         return existing_plant
     
     # If not found, merge data and create new plant
-    plant_data, care_data = merge_plant_data(scientific_name, perenual_id, trefle_id)
+    plant_data, care_data = merge_plant_data(scientific_name, trefle_id)
     
     # Create plant in database
     plant = crud.create_plant(**plant_data)
@@ -97,13 +101,12 @@ def find_or_create_plant(scientific_name, perenual_id=None, trefle_id=None):
     
     return plant
 
-def update_plant_from_apis(plant_id, perenual_id=None, trefle_id=None):
+def update_plant_from_apis(plant_id, trefle_id=None):
     """
     Update an existing plant with data from APIs.
     
     Args:
         plant_id: ID of the plant in the database
-        perenual_id: ID of the plant in Perenual API (optional)
         trefle_id: ID of the plant in Trefle API (optional)
     
     Returns:
@@ -117,11 +120,7 @@ def update_plant_from_apis(plant_id, perenual_id=None, trefle_id=None):
         return None
     
     # Merge data from APIs
-    plant_data, care_data = merge_plant_data(
-        plant.scientific_name, 
-        perenual_id, 
-        trefle_id
-    )
+    plant_data, care_data = merge_plant_data(plant.scientific_name, trefle_id)
     
     # Update plant data
     for key, value in plant_data.items():

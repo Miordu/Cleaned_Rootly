@@ -33,7 +33,7 @@ def get_users():
 
 def get_user_by_id(user_id):
     """Return a user by ID."""
-    return User.query.get(user_id)
+    return db.session.get(User, user_id)
 
 def get_user_by_email(email):
     """Return a user by email."""
@@ -41,7 +41,7 @@ def get_user_by_email(email):
 
 def update_user(user_id, **kwargs):
     """Update user details."""
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     
     if not user:
         return None
@@ -57,7 +57,7 @@ def update_user(user_id, **kwargs):
 
 def delete_user(user_id):
     """Delete a user."""
-    user = User.query.get(user_id)
+    user = db.session.get(User, user_id)
     
     if not user:
         return False
@@ -105,7 +105,7 @@ def get_plants():
 
 def get_plant_by_id(plant_id):
     """Return a plant by ID."""
-    return Plant.query.get(plant_id)
+    return db.session.get(Plant, plant_id)
 
 def get_plant_by_scientific_name(scientific_name):
     """Return a plant by scientific name."""
@@ -148,7 +148,7 @@ def filter_plants(plant_type=None, indoor=None, outdoor=None, poisonous=None, tr
 
 def update_plant(plant_id, **kwargs):
     """Update plant details."""
-    plant = Plant.query.get(plant_id)
+    plant = db.session.get(Plant, plant_id)
     
     if not plant:
         return None
@@ -163,7 +163,7 @@ def update_plant(plant_id, **kwargs):
 
 def delete_plant(plant_id):
     """Delete a plant."""
-    plant = Plant.query.get(plant_id)
+    plant = db.session.get(Plant, plant_id)
     
     if not plant:
         return False
@@ -256,11 +256,11 @@ def get_user_plants(user_id):
 
 def get_user_plant_by_id(user_plant_id):
     """Return a specific user plant by ID."""
-    return UserPlant.query.get(user_plant_id)
+    return db.session.get(UserPlant, user_plant_id)
 
 def update_user_plant(user_plant_id, **kwargs):
     """Update a user's plant."""
-    user_plant = UserPlant.query.get(user_plant_id)
+    user_plant = db.session.get(UserPlant, user_plant_id)
     
     if not user_plant:
         return None
@@ -274,7 +274,7 @@ def update_user_plant(user_plant_id, **kwargs):
 
 def delete_user_plant(user_plant_id):
     """Delete a user's plant."""
-    user_plant = UserPlant.query.get(user_plant_id)
+    user_plant = db.session.get(UserPlant, user_plant_id)
     
     if not user_plant:
         return False
@@ -351,7 +351,7 @@ def get_upcoming_reminders(user_id, days=7):
 
 def update_reminder(reminder_id, **kwargs):
     """Update a reminder."""
-    reminder = Reminder.query.get(reminder_id)
+    reminder = db.session.get(Reminder, reminder_id)
     
     if not reminder:
         return None
@@ -392,7 +392,7 @@ def get_health_assessments_by_user_plant(user_plant_id):
 
 def update_health_assessment(assessment_id, **kwargs):
     """Update a health assessment."""
-    assessment = HealthAssessment.query.get(assessment_id)
+    assessment = db.session.get(HealthAssessment, assessment_id)
     
     if not assessment:
         return None
@@ -433,7 +433,7 @@ def get_identifications_by_user(user_id):
 
 def update_identification(identification_id, **kwargs):
     """Update an identification record."""
-    identification = IdentificationHistory.query.get(identification_id)
+    identification = db.session.get(IdentificationHistory, identification_id)
     
     if not identification:
         return None
@@ -541,7 +541,7 @@ def get_regions():
 
 def get_region_by_id(region_id):
     """Return a region by ID."""
-    return Region.query.get(region_id)
+    return db.session.get(Region, region_id)
 
 # ----------------------------------------
 # PlantRegionCare operations

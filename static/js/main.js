@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 5000);
     });
     
-    // File upload preview for identify page
+    // Image preview for any file input with id="plant_image"
     const fileInput = document.getElementById('plant_image');
     const previewContainer = document.getElementById('image-preview-container');
     

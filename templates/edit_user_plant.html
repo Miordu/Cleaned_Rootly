@@ -81,7 +81,7 @@
                 <div class="card-body">
                     <h6>{{ user_plant.plant.common_name }}</h6>
                     <p class="text-muted font-italic">{{ user_plant.plant.scientific_name }}</p>
-                    <p>{{ user_plant.plant.description|truncate(150) }}</p>
+                    <p>{{ (user_plant.plant.description or 'No description available.')|truncate(150) }}</p>
                     <a href="/plant/{{ user_plant.plant.plant_id }}" class="btn btn-sm btn-outline-success">View Plant Details</a>
                 </div>
             </div>

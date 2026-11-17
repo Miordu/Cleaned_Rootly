@@ -6,6 +6,7 @@ from model import connect_to_db, db, User, Plant, PlantCareDetails, UserPlant
 from model import CareEvent, Reminder, HealthAssessment, Region
 import os
 from datetime import datetime, date, timedelta
+from types import SimpleNamespace
 from jinja2 import StrictUndefined
 from werkzeug.utils import secure_filename
 import logging
@@ -18,13 +19,29 @@ load_dotenv()
 app = Flask(__name__)
 app.jinja_env.undefined = StrictUndefined
 
-# Set up secret key for sessions and debug
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key')
 
-# Configure upload folder for plant images
-UPLOAD_FOLDER = 'static/uploads'
+def env_flag(name, default=False):
+    """Read a true/false setting such as DEBUG=True from the environment."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+# Set up secret key for sessions
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not app.secret_key:
+    app.secret_key = 'dev-secret-key'
+    print("WARNING: FLASK_SECRET_KEY is not set, using an insecure development key.")
+
+# Configure upload folder for plant images. Built from this file's location so
+# uploads land in the right place no matter which folder you start the app from.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Reject uploads bigger than 16 MB instead of filling the disk
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Ensure upload directory exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -36,15 +53,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize database connection
-from model import connect_to_db
-connect_to_db(app)
+# Initialize database connection (uses DATABASE_URI from .env if set)
+connect_to_db(app, echo=env_flag('SQLALCHEMY_ECHO'))
 
 # Helper functions
 def allowed_file(filename):
     """Check if the file extension is allowed"""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def stale_session_redirect():
+    """Log out a browser whose saved user no longer exists in the database."""
+    session.pop('user_id', None)
+    flash('Please log in again.')
+    return redirect('/login')
 
 # Routes
 @app.route('/')
@@ -116,84 +138,25 @@ def dashboard():
         return redirect('/login')
     
     user = db.session.get(User, session['user_id'])
-    
-    return render_template('dashboard.html', user=user)
+    if user is None:
+        return stale_session_redirect()
 
-@app.route('/identify', methods=['GET', 'POST'])
+    # These two counts were hard-coded to 0 before
+    return render_template(
+        'dashboard.html',
+        user=user,
+        upcoming_reminders=len(crud.get_upcoming_reminders(user.user_id)),
+        recent_care_events=len(crud.get_recent_care_events(user.user_id)),
+    )
+
+@app.route('/identify')
 def identify_plant():
-    """Identify a plant from an image."""
-    if 'user_id' not in session:
-        flash('Please log in to identify plants.')
-        return redirect('/login')
-    
-    if request.method == 'POST':
-        # Check if the post request has the file part
-        if 'plant_image' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
-        
-        file = request.files['plant_image']
-        
-        # If user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            # Add user_id to filename to avoid conflicts
-            user_filename = f"{session['user_id']}_{datetime.utcnow().timestamp()}_{filename}"
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], user_filename)
-            file.save(file_path)
-            
-            # Call the Plant.id API
-            from api.plant_id import identify_plant, map_identification_result
-            
-            try:
-                # Identify the plant
-                identification_result = identify_plant(file_path)
-                
-                if 'error' in identification_result:
-                    flash(f"Error identifying plant: {identification_result['error']}")
-                    return redirect('/identify')
-                
-                # Map the result to our model structure
-                plant_data = map_identification_result(identification_result)
-                
-                if not plant_data:
-                    flash("Could not identify the plant. Please try with a clearer image.")
-                    return redirect('/identify')
-                
-                # Look for matching plant in database
-                plant = crud.get_plant_by_scientific_name(plant_data['scientific_name'])
-                
-                # If not found, create a new plant entry
-                if not plant:
-                    # Import the data merger
-                    from data_merger import find_or_create_plant
-                    plant = find_or_create_plant(scientific_name=plant_data['scientific_name'])
-                
-                # Create identification history record
-                identification = crud.create_identification(
-                    user_id=session['user_id'],
-                    image_url=f"/static/uploads/{user_filename}",
-                    identified_plant_id=plant.plant_id,
-                    confidence_score=plant_data.get('confidence_score', 0.0)
-                )
-                
-                return render_template('identification_results.html', 
-                                      plant=plant, 
-                                      image_url=f"/static/uploads/{user_filename}",
-                                      confidence=plant_data.get('confidence_score', 0.0),
-                                      plant_data=plant_data)
-            
-            except Exception as e:
-                app.logger.error(f"Error in plant identification: {str(e)}")
-                flash("An error occurred during identification. Please try again.")
-                return redirect('/identify')
-    
-    return render_template('identify.html')
+    """Photo identification was removed with the paid Plant.id API.
+
+    Old links and bookmarks land on plant search instead.
+    """
+    flash('Photo identification is no longer available. Search for your plant by name instead.')
+    return redirect('/search-plants')
 
 @app.route('/my-plants')
 def my_plants():
@@ -203,6 +166,8 @@ def my_plants():
         return redirect('/login')
     
     user = db.session.get(User, session['user_id'])
+    if user is None:
+        return stale_session_redirect()
     user_plants = UserPlant.query.filter_by(user_id=user.user_id).all()
     
     return render_template('my_plants.html', user=user, user_plants=user_plants)
@@ -215,10 +180,15 @@ def add_plant():
         return redirect('/login')
     
     if request.method == 'POST':
-        plant_id = request.form.get('plant_id')
+        plant_id = request.form.get('plant_id', type=int)
         nickname = request.form.get('nickname')
         location = request.form.get('location')
-        
+
+        # Without this check, a missing or made-up plant_id crashes with a 500
+        if not plant_id or not db.session.get(Plant, plant_id):
+            flash('Please choose a plant from the list.')
+            return redirect('/add-plant')
+
         new_user_plant = UserPlant(
             user_id=session['user_id'],
             plant_id=plant_id,
@@ -238,80 +208,57 @@ def add_plant():
     plants = Plant.query.all()
     return render_template('add_plant.html', plants=plants)
 
+def trefle_plant_for_display(plant_data):
+    """Turn one plant from a Trefle list or search into something the
+    browse page can show next to the plants from our own database."""
+    family = plant_data.get('family')
+    return SimpleNamespace(
+        plant_id=f"api_{plant_data.get('id', 0)}",
+        scientific_name=plant_data.get('scientific_name') or 'Unknown',
+        common_name=plant_data.get('common_name') or plant_data.get('scientific_name') or 'Unknown',
+        image_url=plant_data.get('image_url'),
+        description=f"A plant in the {family} family." if family else "A plant from the Trefle database.",
+        is_api_result=True,
+    )
+
+
 @app.route('/browse-plants')
 def browse_plants():
-    """Browse plants from APIs and database."""
-    # Get search parameter
+    """Browse plants from our database and the Trefle API."""
+    from api.quantitative_plant import get_plant_list, search_plants as trefle_search
+
     search = request.args.get('search', '')
-    page = int(request.args.get('page', 1))
-    
-    try:
-        if search:
-            # Search local database first
-            local_plants = Plant.query.filter(
-                (Plant.common_name.ilike(f'%{search}%')) | 
-                (Plant.scientific_name.ilike(f'%{search}%'))
-            ).limit(20).all()
-            
-            # If few results, supplement with API search
-            if len(local_plants) < 10:
-                try:
-                    from api.perenual import search_plants as perenual_search
-                    api_plants = perenual_search(search)
-                    if api_plants and 'data' in api_plants:
-                        # Convert API plants to display format
-                        for plant_data in api_plants['data'][:10]:
-                            # Create temporary plant objects for display
-                            api_plant = {
-                                'plant_id': f"api_{plant_data.get('id', 0)}",
-                                'scientific_name': plant_data.get('scientific_name', ['Unknown'])[0] if plant_data.get('scientific_name') else 'Unknown',
-                                'common_name': plant_data.get('common_name', 'Unknown'),
-                                'image_url': plant_data.get('default_image', {}).get('small_url') if plant_data.get('default_image') else None,
-                                'description': f"A {plant_data.get('type', 'plant')} from our plant database.",
-                                'is_api_result': True
-                            }
-                            local_plants.append(type('Plant', (), api_plant)())
-                except Exception as e:
-                    logger.warning(f"API search failed: {e}")
-            
-            plants = local_plants
-        else:
-            # Load popular plants from API
-            try:
-                from api.perenual import get_plant_list
-                api_response = get_plant_list(page=page)
-                plants = []
-                
-                if api_response and 'data' in api_response:
-                    for plant_data in api_response['data']:
-                        # Create plant objects for display
-                        api_plant = {
-                            'plant_id': f"api_{plant_data.get('id', 0)}",
-                            'scientific_name': plant_data.get('scientific_name', ['Unknown'])[0] if plant_data.get('scientific_name') else 'Unknown',
-                            'common_name': plant_data.get('common_name', 'Unknown'),
-                            'image_url': plant_data.get('default_image', {}).get('small_url') if plant_data.get('default_image') else None,
-                            'description': f"A {plant_data.get('type', 'plant')} from our plant database.",
-                            'is_api_result': True
-                        }
-                        plants.append(type('Plant', (), api_plant)())
-                else:
-                    # Fall back to local database
-                    plants = Plant.query.limit(20).all()
-            except Exception as e:
-                logger.error(f"API request failed: {e}")
-                # Fall back to local database
-                plants = Plant.query.limit(20).all()
-                
-    except Exception as e:
-        logger.error(f"Error in browse_plants: {e}")
-        plants = Plant.query.limit(20).all()
-    
+    # type=int returns the default instead of crashing on ?page=abc
+    page = max(request.args.get('page', 1, type=int), 1)
+
+    if search:
+        # Search our own database first
+        plants = Plant.query.filter(
+            (Plant.common_name.ilike(f'%{search}%')) |
+            (Plant.scientific_name.ilike(f'%{search}%'))
+        ).limit(20).all()
+
+        # Only call Trefle when our database has few matches, to save requests
+        if len(plants) < 10:
+            known = {p.scientific_name for p in plants}
+            for plant_data in trefle_search(search).get('data', [])[:10]:
+                if plant_data.get('scientific_name') not in known:
+                    plants.append(trefle_plant_for_display(plant_data))
+    else:
+        api_response = get_plant_list(page=page)
+        plants = [trefle_plant_for_display(p) for p in api_response.get('data', [])]
+
+        if not plants:
+            # Trefle sent nothing back (no key, API down, or past the last
+            # page), so show the plants already in our database.
+            plants = Plant.query.limit(20).all()
+
     return render_template('browse_plants.html', plants=plants, search=search, page=page)
 
 @app.route('/plant/<int:plant_id>')
 def plant_details(plant_id):
     """Show details for a specific plant."""
-    plant = Plant.query.get_or_404(plant_id)
+    plant = db.get_or_404(Plant, plant_id)
     care_details = PlantCareDetails.query.filter_by(plant_id=plant_id).first()
     
     return render_template('plant_details.html', plant=plant, care_details=care_details)
@@ -323,7 +270,7 @@ def user_plant_details(user_plant_id):
         flash('Please log in to view your plants.')
         return redirect('/login')
     
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     
     # Ensure the plant belongs to the logged-in user
     if user_plant.user_id != session['user_id']:
@@ -356,12 +303,12 @@ def log_care():
         flash('Please log in to log care events.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     event_type = request.form.get('event_type')
     notes = request.form.get('notes')
     
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
@@ -387,17 +334,24 @@ def add_reminder():
         flash('Please log in to add reminders.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     reminder_type = request.form.get('reminder_type')
     frequency = request.form.get('frequency')
     next_reminder_date = request.form.get('next_reminder_date')
-    
+
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
-    
+
+    # A blank or badly formatted date used to crash the page with a database error
+    try:
+        next_reminder_date = date.fromisoformat(next_reminder_date or '')
+    except ValueError:
+        flash('Please pick a date for the reminder.')
+        return redirect(f'/user-plant/{user_plant_id}')
+
     # Create the reminder
     new_reminder = Reminder(
         user_plant_id=user_plant_id,
@@ -420,65 +374,31 @@ def add_health_assessment():
         flash('Please log in to add health assessments.')
         return redirect('/login')
     
-    user_plant_id = request.form.get('user_plant_id')
+    user_plant_id = request.form.get('user_plant_id', type=int)
     
     # Verify the plant belongs to the user
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this plant.')
         return redirect('/my-plants')
     
-    # Process image upload if provided
+    # Save the photo if one was uploaded. (Automatic diagnosis from the photo
+    # was removed along with the paid Plant.id API.)
     image_url = None
-    assessment_result = None
-    
+
     if 'image' in request.files and request.files['image'].filename:
         file = request.files['image']
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             # Add user_id and timestamp to filename to avoid conflicts
             user_filename = f"{session['user_id']}_{int(datetime.utcnow().timestamp())}_{filename}"
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], user_filename)
-            file.save(file_path)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], user_filename))
             image_url = f"/static/uploads/{user_filename}"
-            
-            # Use Plant.health API for automated assessment
-            try:
-                from api.plant_health import assess_health, map_health_assessment
-                
-                # Assess plant health
-                health_result = assess_health(file_path)
-                
-                if 'error' not in health_result:
-                    # Map health assessment to our model structure
-                    assessment_result = map_health_assessment(health_result)
-                else:
-                    app.logger.warning(f"Health assessment API error: {health_result.get('error')}")
-            except Exception as e:
-                app.logger.error(f"Error in health assessment: {str(e)}")
-    
-    # Get form data
+
     symptoms = request.form.getlist('symptoms')
     diagnosis = request.form.get('diagnosis')
     treatment_recommendations = request.form.get('treatment_recommendations')
-    
-    # If we have an API assessment result, use it to supplement user input
-    if assessment_result:
-        # Only use API diagnosis if user didn't provide one
-        if not diagnosis and assessment_result.get('diagnosis'):
-            diagnosis = assessment_result.get('diagnosis')
-        
-        # Combine symptoms from user and API
-        if assessment_result.get('symptoms'):
-            symptoms = list(set(symptoms + assessment_result.get('symptoms', [])))
-        
-        # Enhance treatment recommendations
-        if assessment_result.get('treatment_recommendations'):
-            if treatment_recommendations:
-                treatment_recommendations += "\n\nAPI Suggestions: " + assessment_result.get('treatment_recommendations')
-            else:
-                treatment_recommendations = assessment_result.get('treatment_recommendations')
-    
+
     # Create the health assessment
     new_assessment = HealthAssessment(
         user_plant_id=user_plant_id,
@@ -504,10 +424,10 @@ def resolve_health_issue(assessment_id):
         return redirect('/login')
     
     # Get the assessment
-    assessment = HealthAssessment.query.get_or_404(assessment_id)
+    assessment = db.get_or_404(HealthAssessment, assessment_id)
     
     # Verify the assessment belongs to a plant owned by the user
-    user_plant = UserPlant.query.get(assessment.user_plant_id)
+    user_plant = db.session.get(UserPlant, assessment.user_plant_id)
     if user_plant.user_id != session['user_id']:
         flash('You do not have access to this assessment.')
         return redirect('/my-plants')
@@ -526,7 +446,7 @@ def edit_user_plant(user_plant_id):
         flash('Please log in to edit your plants.')
         return redirect('/login')
     
-    user_plant = UserPlant.query.get_or_404(user_plant_id)
+    user_plant = db.get_or_404(UserPlant, user_plant_id)
     
     # Ensure the plant belongs to the logged-in user
     if user_plant.user_id != session['user_id']:
@@ -686,7 +606,8 @@ def import_plant():
             
             # Try to get care details
             try:
-                growth_data = get_growth_data(external_id)
+                # Reuse the details we already have instead of asking Trefle again
+                growth_data = get_growth_data(external_id, plant_details=plant_details)
                 if growth_data and 'error' not in growth_data:
                     care_model = map_growth_data_to_model(growth_data)
                     
@@ -744,4 +665,9 @@ def server_error(e):
     return render_template('500.html'), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=True, port=5001)
+    # Debug mode turns on Flask's interactive debugger, which lets anyone who
+    # can reach the page run Python code. Only turn it on with DEBUG=True in
+    # your local .env, and keep the app on 127.0.0.1 unless you set HOST.
+    app.run(host=os.environ.get('HOST', '127.0.0.1'),
+            port=int(os.environ.get('PORT', 5001)),
+            debug=env_flag('DEBUG'))

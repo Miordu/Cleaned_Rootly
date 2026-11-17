@@ -1,70 +1,48 @@
-import unittest
-from datetime import datetime, timedelta
-from server import app
-from model import connect_to_db, db
+"""End-to-end check of the main thing Rootly is for: sign up, add a plant,
+look after it, and see it all on the plant's page."""
+
+from datetime import date, timedelta
+
 import crud
+from model import CareEvent, Reminder, UserPlant
 
-class IntegrationTests(unittest.TestCase):
-    def setUp(self):
-        """Set up test environment."""
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql:///rootly_test'
-        app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for testing
-        self.client = app.test_client()
-        
-        with app.app_context():
-            connect_to_db(app)
-            db.create_all()
-            
-            # Create test user and plant
-            self.user = crud.create_user("testuser", "test@example.com", "password123")
-            self.plant = crud.create_plant(
-                scientific_name="Test Integration Plant",
-                common_name="TIP",
-                indoor=True
-            )
-            crud.create_plant_care_details(
-                plant_id=self.plant.plant_id,
-                watering_frequency="Weekly"
-            )
-    
-    def tearDown(self):
-        """Clean up after test."""
-        with app.app_context():
-            db.session.remove()
-            db.drop_all()
-    
-    def test_plant_care_workflow(self):
-        """Test the full plant care workflow."""
-        with app.app_context():
-            # Add plant to user's collection
-            user_plant = crud.create_user_plant(
-                user_id=self.user.user_id,
-                plant_id=self.plant.plant_id,
-                nickname="My Test Plant"
-            )
-            self.assertIsNotNone(user_plant)
-            
-            # Create care event
-            care_event = crud.create_care_event(
-                user_plant_id=user_plant.user_plant_id,
-                event_type="Watering",
-                notes="Initial watering"
-            )
-            self.assertIsNotNone(care_event)
-            
-            # Create reminder
-            reminder = crud.create_reminder(
-                user_plant_id=user_plant.user_plant_id,
-                reminder_type="Watering",
-                frequency="Weekly",
-                next_reminder_date=datetime.now().date() + timedelta(days=7)
-            )
-            self.assertIsNotNone(reminder)
-            
-            # Verify we can retrieve upcoming reminders
-            upcoming = crud.get_upcoming_reminders(self.user.user_id)
-            self.assertGreaterEqual(len(upcoming), 1)
 
-if __name__ == '__main__':
-    unittest.main()
+def test_full_plant_care_workflow(client, app):
+    region = crud.create_region("Southeast US", "7-10", 70.0, "High")
+    plant = crud.create_plant("Calathea orbifolia", common_name="Prayer plant", indoor=True)
+    crud.create_plant_care_details(plant_id=plant.plant_id, watering_frequency="Weekly")
+
+    # Sign up (this also logs you in)
+    response = client.post("/register", data={
+        "username": "q", "email": "q@example.com", "password": "pw-123",
+        "region_id": region.region_id,
+    })
+    assert response.headers["Location"].endswith("/dashboard")
+
+    # Add the plant to my collection
+    client.post("/add-plant", data={"plant_id": plant.plant_id, "nickname": "Orbi",
+                                    "location": "Bedroom"})
+    user_plant = UserPlant.query.one()
+    upid = user_plant.user_plant_id
+
+    # Water it and set a reminder
+    client.post("/log-care", data={"user_plant_id": upid, "event_type": "Watering",
+                                   "notes": "Filtered water"})
+    client.post("/add-reminder", data={
+        "user_plant_id": upid, "reminder_type": "Watering", "frequency": "Weekly",
+        "next_reminder_date": (date.today() + timedelta(days=7)).isoformat(),
+    })
+    assert CareEvent.query.count() == 1
+    assert Reminder.query.count() == 1
+
+    # Everything shows up on the plant's page
+    page = client.get(f"/user-plant/{upid}")
+    assert page.status_code == 200
+    assert b"Orbi" in page.data
+
+    # Log out, log back in
+    client.get("/logout")
+    assert client.get("/my-plants").status_code == 302
+    login = client.post("/login", data={"email": "q@example.com", "password": "pw-123"})
+    assert login.headers["Location"].endswith("/dashboard")
+    assert b"Orbi" in client.get("/my-plants").data

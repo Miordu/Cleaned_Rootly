@@ -1,5 +1,6 @@
 """Models for Rootly plant care app."""
 
+import os
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -272,8 +273,21 @@ class RelatedPlant(db.Model):
         return f"<RelatedPlant related_id={self.related_id} type={self.relationship_type}>"
 
 
-def connect_to_db(flask_app, db_uri="postgresql:///rootly", echo=True):
-    """Connect the database to our Flask app."""
+def connect_to_db(flask_app, db_uri=None, echo=False):
+    """Connect the database to our Flask app.
+
+    The database URL comes from the db_uri argument, then the DATABASE_URI
+    environment variable, then the local default postgresql:///rootly.
+
+    Safe to call more than once: server.py already connects when it is
+    imported, so scripts like seed.py that call this again won't crash.
+    """
+
+    if "sqlalchemy" in flask_app.extensions:
+        return
+
+    if db_uri is None:
+        db_uri = os.environ.get("DATABASE_URI", "postgresql:///rootly")
 
     # Configure to use our database
     flask_app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
